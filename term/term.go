@@ -9,14 +9,15 @@ import (
 )
 
 type Terminal struct {
+	authkey   string
 	imei      string
 	iccid     string
 	vin       string
-	pepsver   uint32
+	tboxver   string
 	loginTime time.Time
 	seqNum    uint16
 	phoneNum  []byte
-	Conn      *net.Conn
+	Conn      net.Conn
 }
 
 type UpdateConf struct {
@@ -64,13 +65,15 @@ func (uc UpdateConf) toByteArray() []byte {
 	return retByte
 }
 
-func (t Terminal) MakeFrame(cmd uint16, phone []byte, seq uint16, apdu []byte) []byte {
+func (t Terminal) MakeFrame(cmd uint16, ver uint8, phone []byte, seq uint16, apdu []byte) []byte {
 	data := make([]byte, 0)
 	tempbytes := utils.Word2Bytes(cmd)
 	data = append(data, tempbytes...)
 	datalen := uint16(len(apdu))
 	tempbytes = utils.Word2Bytes(datalen)
 	data = append(data, tempbytes...)
+
+	data = append(data, ver)
 
 	data = append(data, phone...)
 
@@ -147,14 +150,12 @@ func (t Terminal) DataFilter(data []byte) int {
 }
 
 func (t Terminal) FrameHandle(data []byte) []byte {
-	//bodylen := data[1] - 5
-	//cmdid := data[5]
 	cmdid := utils.Bytes2Word(data[1:3])
-	t.phoneNum = data[5:11]
-	t.seqNum = utils.Bytes2Word(data[11:13])
+	t.phoneNum = data[6 : 6+10]
+	t.seqNum = utils.Bytes2Word(data[16:18])
 	fmt.Println("cmdid:", cmdid)
 	len := len(data)
-	return t.apduHandle(cmdid, data[13:len-2])
+	return t.apduHandle(cmdid, data[18:len-2])
 }
 
 func (t Terminal) apduHandle(cmdType uint16, apdu []byte) []byte {
@@ -162,25 +163,40 @@ func (t Terminal) apduHandle(cmdType uint16, apdu []byte) []byte {
 	case register:
 		fmt.Println("rcv register.")
 		apduack := t.makeApduRegisterAck(0, "AACAB")
-		sendBuf := t.MakeFrame(registerAck, t.phoneNum, t.seqNum, apduack)
+		sendBuf := t.MakeFrame(registerAck, 1, t.phoneNum, t.seqNum, apduack)
 		return sendBuf
 	case login:
 		fmt.Println("rcv login.")
+		authkeylen := apdu[0]
+		t.authkey = string(apdu[1 : 1+authkeylen])
+		t.imei = string(apdu[1+authkeylen : 1+authkeylen+15])
+
+		verArray := apdu[1+authkeylen+15 : 1+authkeylen+15+20]
+
+		var emptyLen int = 0
+		for i := 0; i < len(verArray); i++ {
+			if verArray[len(verArray)-1-i] != 0x00 {
+				break
+			}
+			emptyLen++
+		}
+		fmt.Println("emptylen:", emptyLen)
+		t.tboxver = string(verArray[:len(verArray)-emptyLen])
 		apduack := t.makeApduCommonAck(cmdType, 0)
-		sendBuf := t.MakeFrame(platAck, t.phoneNum, t.seqNum, apduack)
+		sendBuf := t.MakeFrame(platAck, 1, t.phoneNum, t.seqNum, apduack)
 
 		return sendBuf
 		//return []byte{}
 	case heartbeat:
 		fmt.Println("rcv heartbeat.")
 		apduack := t.makeApduCommonAck(cmdType, 0)
-		sendBuf := t.MakeFrame(platAck, t.phoneNum, t.seqNum, apduack)
+		sendBuf := t.MakeFrame(platAck, 1, t.phoneNum, t.seqNum, apduack)
 
 		return sendBuf
 	case gpsinfo:
 		fmt.Println("rcv gpsinfo.")
 		apduack := t.makeApduCommonAck(cmdType, 0)
-		sendBuf := t.MakeFrame(platAck, t.phoneNum, t.seqNum, apduack)
+		sendBuf := t.MakeFrame(platAck, 1, t.phoneNum, t.seqNum, apduack)
 
 		return sendBuf
 	}

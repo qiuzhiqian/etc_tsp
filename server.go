@@ -8,10 +8,10 @@ import (
 
 	"audotsp/term"
 
+	"bufio"
 	"regexp"
 	"strconv"
 	"strings"
-	"bufio"
 )
 
 //var connList []net.Conn
@@ -33,11 +33,11 @@ func recvConnMsg(conn net.Conn) {
 	fmt.Println(addr.Network())
 	fmt.Println(addr.String())
 
-	term.Conn = &conn
-	connManger[addr.String()]=term
+	term.Conn = conn
+	connManger[addr.String()] = term
 
-	defer func(){
-		delete(connManger,addr.String())
+	defer func() {
+		delete(connManger, addr.String())
 		conn.Close()
 	}()
 
@@ -79,7 +79,7 @@ func recvConnMsg(conn net.Conn) {
 func inputHandler() {
 	//var buffer [512]byte
 	fmt.Printf("inputHandler.\n")
-	
+
 	rTermCtrl, _ := regexp.Compile("^ctrl [0-9]{1,3}")
 	rList, _ := regexp.Compile("^ls")
 
@@ -147,9 +147,9 @@ func inputHandler() {
 				//fmt.Printf("\n")
 				//(*tm.Conn).Write(sendBuf)
 			}
-		}else if rList.MatchString(str) {
-			for key,value:=range connManger {
-				fmt.Println("ip:",key," ,imei:",value.GetImei()," iccid:",value.GetIccid())
+		} else if rList.MatchString(str) {
+			for key, value := range connManger {
+				fmt.Println("ip:", key, " ,imei:", value.GetImei(), " iccid:", value.GetIccid())
 			}
 		}
 	}

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"time"
 
 	"audotsp/term"
 
@@ -12,12 +13,48 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/go-xorm/xorm"
+	_ "github.com/lib/pq"
 )
 
+type Users struct {
+	Id   int    `xorm:"pk autoincr notnull id"`
+	Name string `xorm:"unique name"`
+	Age  int    `xorm:"age"`
+}
+
+type LogFrame struct {
+	Id        int    `xorm:"pk autoincr notnull id"`
+	Timestamp int64  `xorm:"BigInt notnull 'timestamp'"`
+	Dir       int    `xorm:"dir"`
+	Frame     string `xorm:"Varchar(2048) frame"`
+}
+
+type DevInfo struct {
+	Authkey    string
+	Imei       string
+	Iccid      string
+	Vin        string
+	ProvId     uint16
+	CityId     uint16
+	Manuf      string
+	TermType   string
+	TermId     string
+	PlateColor int
+	PlateNum   string
+}
+
+func (d DevInfo) TableName() string {
+	return "dev_info"
+}
+
 //var connList []net.Conn
-var connManger map[string]term.Terminal
+var connManger map[string]*term.Terminal
 
 var port string
+
+var engine *xorm.Engine
 
 func checkError(err error) {
 	if err != nil {
@@ -27,12 +64,14 @@ func checkError(err error) {
 }
 
 func recvConnMsg(conn net.Conn) {
-	var term term.Terminal
 	buf := make([]byte, 0)
 	addr := conn.RemoteAddr()
 	fmt.Println(addr.Network())
 	fmt.Println(addr.String())
 
+	var term *term.Terminal = &term.Terminal{
+		Conn: conn,
+	}
 	term.Conn = conn
 	connManger[addr.String()] = term
 
@@ -52,22 +91,43 @@ func recvConnMsg(conn net.Conn) {
 
 		fmt.Printf("rcv frm[%d].\n", n)
 		buf = append(buf, tempbuf[:n]...)
-		fmt.Printf("<----")
+		var outlog string
 		for _, val := range buf {
-			fmt.Printf("%02X ", val)
+			outlog += fmt.Sprintf("%02X", val)
 		}
-		fmt.Printf("\n")
+		fmt.Println("<--- ", outlog)
+
+		logframe := new(LogFrame)
+		engine.Sync2(logframe)
+		logframe.Timestamp = time.Now().Unix()
+		logframe.Dir = 0
+		logframe.Frame = outlog
+		_, err = engine.Insert(logframe)
+		if err != nil {
+			fmt.Println(err)
+		}
 		frmlen := term.DataFilter(buf)
 		if frmlen == -2 {
 			buf = make([]byte, 0)
 		} else if frmlen > 0 {
 			sendBuf := term.FrameHandle(buf)
 			if sendBuf != nil {
-				fmt.Printf("---->")
+				outlog = ""
 				for _, val := range sendBuf {
-					fmt.Printf("%02X ", val)
+					outlog += fmt.Sprintf("%02X", val)
 				}
-				fmt.Printf("\n")
+				fmt.Println("---> ", outlog)
+
+				logframe := new(LogFrame)
+				engine.Sync2(logframe)
+				logframe.Timestamp = time.Now().Unix()
+				logframe.Dir = 1
+				logframe.Frame = outlog
+				_, err = engine.Insert(logframe)
+				if err != nil {
+					fmt.Println(err)
+				}
+
 				conn.Write(sendBuf)
 			}
 
@@ -157,8 +217,27 @@ func inputHandler() {
 }
 
 func main() {
-	flag.StringVar(&port, "port", "11229", "server port")
+	flag.StringVar(&port, "port", "19901", "server port")
 	flag.Parse()
+
+	var err error
+	engine, err = xorm.NewEngine("postgres", "postgres://pqgotest:pqgotest@localhost/pqgodb?sslmode=require")
+	if err != nil {
+		fmt.Println("new engine ", err)
+	}
+
+	users := new(Users)
+	err = engine.Sync(users)
+	if err != nil {
+		fmt.Println("sync users ", err)
+	}
+
+	//users.Name = "xml"
+	//users.Age = 29
+	//_, err = engine.Insert(users)
+	//if err != nil {
+	//	fmt.Println(err)
+	//}
 
 	address := ":" + port
 	fmt.Println("address port ", address)
@@ -167,7 +246,7 @@ func main() {
 	checkError(err)
 	defer listenSock.Close()
 
-	connManger = make(map[string]term.Terminal)
+	connManger = make(map[string]*term.Terminal)
 
 	go inputHandler()
 

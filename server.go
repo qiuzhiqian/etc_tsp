@@ -31,24 +31,6 @@ type LogFrame struct {
 	Frame     string `xorm:"Varchar(2048) frame"`
 }
 
-type DevInfo struct {
-	Authkey    string
-	Imei       string
-	Iccid      string
-	Vin        string
-	ProvId     uint16
-	CityId     uint16
-	Manuf      string
-	TermType   string
-	TermId     string
-	PlateColor int
-	PlateNum   string
-}
-
-func (d DevInfo) TableName() string {
-	return "dev_info"
-}
-
 //var connList []net.Conn
 var connManger map[string]*term.Terminal
 
@@ -70,7 +52,8 @@ func recvConnMsg(conn net.Conn) {
 	fmt.Println(addr.String())
 
 	var term *term.Terminal = &term.Terminal{
-		Conn: conn,
+		Conn:   conn,
+		Engine: engine,
 	}
 	term.Conn = conn
 	connManger[addr.String()] = term

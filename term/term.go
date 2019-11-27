@@ -6,7 +6,28 @@ import (
 	"time"
 
 	"audotsp/utils"
+
+	"github.com/go-xorm/xorm"
+	_ "github.com/lib/pq"
 )
+
+type DevInfo struct {
+	Authkey    string `xorm:"auth_key"`
+	Imei       string `xorm:"imei"`
+	Vin        string `xorm:"vin"`
+	PhoneNum   string `xorm:"pk notnull phone_num"`
+	ProvId     uint16 `xorm:"prov_id"`
+	CityId     uint16 `xorm:"city_id"`
+	Manuf      string `xorm:"manuf"`
+	TermType   string `xorm:"term_type"`
+	TermId     string `xorm:"term_id"`
+	PlateColor int    `xorm:"plate_color"`
+	PlateNum   string `xorm:"plate_num"`
+}
+
+func (d DevInfo) TableName() string {
+	return "dev_info"
+}
 
 type Terminal struct {
 	authkey   string
@@ -18,6 +39,7 @@ type Terminal struct {
 	seqNum    uint16
 	phoneNum  []byte
 	Conn      net.Conn
+	Engine    *xorm.Engine
 }
 
 type UpdateConf struct {
@@ -162,7 +184,37 @@ func (t Terminal) apduHandle(cmdType uint16, apdu []byte) []byte {
 	switch cmdType {
 	case register:
 		fmt.Println("rcv register.")
-		apduack := t.makeApduRegisterAck(0, "AACAB")
+
+		devinfo := new(DevInfo)
+
+		sta, err := t.Engine.IsTableExist(devinfo)
+		if err != nil {
+			fmt.Println("IsTableExist ", err)
+		}
+
+		if sta == false {
+			err = t.Engine.Sync2(devinfo)
+			if err != nil {
+				fmt.Println("sync dev ", err)
+			}
+		}
+
+		devinfo.PhoneNum = utils.HexBuffToString(t.phoneNum)
+		fmt.Println("phnoe:", devinfo.PhoneNum)
+
+		tempinfo := &DevInfo{PhoneNum: devinfo.PhoneNum}
+		is, _ := t.Engine.Get(tempinfo)
+		if !is {
+			fmt.Println("no this phone")
+			return []byte{}
+		}
+
+		//_, err = t.Engine.Insert(devinfo)
+		//if err != nil {
+		//	fmt.Println("insert dev ", err)
+		//}
+
+		apduack := t.makeApduRegisterAck(0, tempinfo.Authkey)
 		sendBuf := t.MakeFrame(registerAck, 1, t.phoneNum, t.seqNum, apduack)
 		return sendBuf
 	case login:

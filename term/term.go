@@ -1,6 +1,8 @@
 package term
 
 import (
+	"bytes"
+	"encoding/gob"
 	"fmt"
 	"net"
 	"time"
@@ -42,20 +44,6 @@ type Terminal struct {
 	Engine    *xorm.Engine
 }
 
-type UpdateConf struct {
-	Url        string
-	DialName   string
-	DialUser   string
-	DialPasswd string
-	Ip         string
-	TcpPort    uint16
-	UdpPort    uint16
-	ManulId    []byte
-	HwVersion  string
-	FwVersion  string
-	ConTime    uint16
-}
-
 const (
 	protoHeader byte = 0x7e
 
@@ -66,32 +54,29 @@ const (
 	heartbeat   uint16 = 0x0002
 	gpsinfo     uint16 = 0x0200
 	platAck     uint16 = 0x8001
+	UpdateReq   uint16 = 0x8108
 )
 
 func init() {
 	fmt.Println("hello module init function")
 }
 
-func (uc UpdateConf) toByteArray() []byte {
-	retByte := make([]byte, 0)
-	retByte = append(retByte, uc.Url...)
-	retByte = append(retByte, uc.DialName...)
-	retByte = append(retByte, uc.DialUser...)
-	retByte = append(retByte, uc.DialPasswd...)
-	retByte = append(retByte, uc.Ip...)
-
-	retByte = append(retByte, utils.Word2Bytes(uc.TcpPort)...)
-	retByte = append(retByte, utils.Word2Bytes(uc.UdpPort)...)
-	retByte = append(retByte, utils.Word2Bytes(uc.UdpPort)...)
-
-	return retByte
+func deepCopy(dst, src interface{}) error {
+	var buf bytes.Buffer
+	if err := gob.NewEncoder(&buf).Encode(src); err != nil {
+		return err
+	}
+	return gob.NewDecoder(bytes.NewBuffer(buf.Bytes())).Decode(dst)
 }
 
 func (t Terminal) MakeFrame(cmd uint16, ver uint8, phone []byte, seq uint16, apdu []byte) []byte {
 	data := make([]byte, 0)
 	tempbytes := utils.Word2Bytes(cmd)
 	data = append(data, tempbytes...)
-	datalen := uint16(len(apdu))
+	datalen := uint16(len(apdu)) & 0x03FF
+	//fmt.Println("datalen:", datalen, " len:", uint16(len(apdu)))
+	datalen = datalen | 0x4000
+
 	tempbytes = utils.Word2Bytes(datalen)
 	data = append(data, tempbytes...)
 
@@ -100,6 +85,45 @@ func (t Terminal) MakeFrame(cmd uint16, ver uint8, phone []byte, seq uint16, apd
 	data = append(data, phone...)
 
 	tempbytes = utils.Word2Bytes(seq)
+	data = append(data, tempbytes...)
+
+	data = append(data, apdu...)
+
+	csdata := byte(t.checkSum(data[:]))
+	data = append(data, csdata)
+
+	//转义
+
+	//添加头尾
+	var tmpdata []byte = []byte{0x7e}
+	data = append(tmpdata, data...)
+	data = append(data, 0x7e)
+
+	return data
+}
+
+func (t Terminal) MakeFrameMult(cmd uint16, ver uint8, phone []byte, seq, sum, cur uint16, apdu []byte) []byte {
+	data := make([]byte, 0)
+	tempbytes := utils.Word2Bytes(cmd)
+	data = append(data, tempbytes...)
+	datalen := uint16(len(apdu)) & 0x03FF
+	fmt.Println("datalen:", datalen, " len:", uint16(len(apdu)))
+	datalen = datalen | 0x4000
+
+	datalen = datalen | 0x2000
+	tempbytes = utils.Word2Bytes(datalen)
+	data = append(data, tempbytes...)
+
+	data = append(data, ver)
+
+	data = append(data, phone...)
+
+	tempbytes = utils.Word2Bytes(seq)
+	data = append(data, tempbytes...)
+
+	tempbytes = utils.Word2Bytes(sum)
+	data = append(data, tempbytes...)
+	tempbytes = utils.Word2Bytes(cur)
 	data = append(data, tempbytes...)
 
 	data = append(data, apdu...)
@@ -173,7 +197,8 @@ func (t Terminal) DataFilter(data []byte) int {
 
 func (t Terminal) FrameHandle(data []byte) []byte {
 	cmdid := utils.Bytes2Word(data[1:3])
-	t.phoneNum = data[6 : 6+10]
+	t.phoneNum = make([]byte, 10)
+	deepCopy(t.phoneNum, data[6:6+10])
 	t.seqNum = utils.Bytes2Word(data[16:18])
 	fmt.Println("cmdid:", cmdid)
 	len := len(data)
@@ -274,4 +299,9 @@ func (t Terminal) GetImei() string {
 
 func (t Terminal) GetIccid() string {
 	return t.iccid
+}
+
+func (t Terminal) GetPhone() []byte {
+	//fmt.Println("ret phone:", t.phoneNum)
+	return []byte{0x00, 0x00, 0x00, 0x00, 0x01, 0x72, 0x55, 0x11, 0x11, 0x11}
 }

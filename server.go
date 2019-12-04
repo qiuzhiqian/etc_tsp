@@ -7,7 +7,7 @@ import (
 	"os"
 	"time"
 
-	"audotsp/utils"
+	"tsp/utils"
 
 	"bufio"
 	"regexp"

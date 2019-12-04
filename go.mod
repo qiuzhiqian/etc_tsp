@@ -1,4 +1,4 @@
-module audotsp
+module tsp
 
 go 1.12
 

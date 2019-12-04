@@ -1,4 +1,4 @@
-package term
+package main
 
 import (
 	"bytes"
@@ -281,6 +281,33 @@ func (t *Terminal) apduHandle(cmdType uint16, apdu []byte) []byte {
 		return sendBuf
 	case gpsinfo:
 		fmt.Println("rcv gpsinfo.")
+
+		var index int = 0
+		gpsdata := new(GPSData)
+		engine.Sync2(gpsdata)
+		gpsdata.Imei = t.imei
+		gpsdata.Stamp = time.Now()
+		gpsdata.WarnFlag = utils.Bytes2DWord(apdu[index : index+4])
+		index += 4
+		gpsdata.State = utils.Bytes2DWord(apdu[index : index+4])
+		index += 4
+		gpsdata.Latitude = utils.Bytes2DWord(apdu[index : index+4])
+		index += 4
+		gpsdata.Longitude = utils.Bytes2DWord(apdu[index : index+4])
+		index += 4
+
+		gpsdata.Altitude = utils.Bytes2Word(apdu[index : index+2])
+		index += 2
+		gpsdata.Speed = utils.Bytes2Word(apdu[index : index+2])
+		index += 2
+		gpsdata.Direction = utils.Bytes2Word(apdu[index : index+2])
+		index += 2
+
+		_, err := engine.Insert(gpsdata)
+		if err != nil {
+			fmt.Println("insert gps err:", err)
+		}
+
 		apduack := t.makeApduCommonAck(cmdType, 0)
 		sendBuf := t.MakeFrame(platAck, 1, t.phoneNum, t.seqNum, apduack)
 

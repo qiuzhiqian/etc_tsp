@@ -7,7 +7,6 @@ import (
 	"os"
 	"time"
 
-	"audotsp/term"
 	"audotsp/utils"
 
 	"bufio"
@@ -29,27 +28,14 @@ type Users struct {
 }
 
 type LogFrame struct {
-	Id        int    `xorm:"pk autoincr notnull id"`
-	Timestamp int64  `xorm:"BigInt notnull 'timestamp'"`
-	Dir       int    `xorm:"dir"`
-	Frame     string `xorm:"Varchar(2048) frame"`
+	Id    int       `xorm:"pk autoincr notnull id"`
+	Stamp time.Time `xorm:"DateTime notnull 'stamp'"`
+	Dir   int       `xorm:"dir"`
+	Frame string    `xorm:"Varchar(2048) frame"`
 }
 
 type DevPage struct {
 	Page int `form:"page" json:"page"  binding:"required"`
-}
-
-type DevPageItem struct {
-	Ip    string `json:"ip"`
-	Imei  string `json:"imei"`
-	Phone string `json:"phone"`
-}
-
-type DevPageList struct {
-	PageCnt   int           `json:"pagecnt"`
-	PageSize  int           `json:"pagesize"`
-	PageIndex int           `json:"pageindex"`
-	Data      []DevPageItem `json:"data"`
 }
 
 type GPSData struct {
@@ -59,13 +45,17 @@ type GPSData struct {
 	State     uint32    `xorm:"state"`
 	Latitude  uint32    `xorm:"latitude"`
 	Longitude uint32    `xorm:"longitude"`
-	Altitude  uint32    `xorm:"altitude"`
+	Altitude  uint16    `xorm:"altitude"`
 	Speed     uint16    `xorm:"speed"`
 	Direction uint16    `xorm:"direction"`
 }
 
+func (d GPSData) TableName() string {
+	return "gps_data"
+}
+
 //var connList []net.Conn
-var connManger map[string]*term.Terminal
+var connManger map[string]*Terminal
 
 var ipaddress string
 var port string
@@ -85,7 +75,7 @@ func recvConnMsg(conn net.Conn) {
 	fmt.Println(addr.Network())
 	fmt.Println(addr.String())
 
-	var term *term.Terminal = &term.Terminal{
+	var term *Terminal = &Terminal{
 		Conn:   conn,
 		Engine: engine,
 	}
@@ -117,7 +107,7 @@ func recvConnMsg(conn net.Conn) {
 
 		logframe := new(LogFrame)
 		engine.Sync2(logframe)
-		logframe.Timestamp = time.Now().Unix()
+		logframe.Stamp = time.Now()
 		logframe.Dir = 0
 		logframe.Frame = outlog
 		_, err = engine.Insert(logframe)
@@ -138,7 +128,7 @@ func recvConnMsg(conn net.Conn) {
 
 				logframe := new(LogFrame)
 				engine.Sync2(logframe)
-				logframe.Timestamp = time.Now().Unix()
+				logframe.Stamp = time.Now()
 				logframe.Dir = 1
 				logframe.Frame = outlog
 				_, err = engine.Insert(logframe)
@@ -221,7 +211,7 @@ func readFull(rd *bufio.Reader, buff []byte) (int, error) {
 
 func updateHandler(name string) {
 	var verstr string = "v1.0.0"
-	var tempTerm *term.Terminal = connManger[ipaddress]
+	var tempTerm *Terminal = connManger[ipaddress]
 	//vbyte := []byte{verstr}
 	if fileObj, err := os.Open(name); err == nil {
 		defer fileObj.Close()
@@ -267,7 +257,7 @@ func updateHandler(name string) {
 					fmt.Println("data[", curCnt, "/", sumcnt, "]:", buf)
 
 					fmt.Println("phone:", tempTerm.GetPhone())
-					retbuf := tempTerm.MakeFrameMult(term.UpdateReq, 1, tempTerm.GetPhone(), 1, sumcnt, curCnt, buf)
+					retbuf := tempTerm.MakeFrameMult(UpdateReq, 1, tempTerm.GetPhone(), 1, sumcnt, curCnt, buf)
 					tempTerm.Conn.Write(retbuf)
 					var outlog string = ""
 					for _, val := range retbuf {
@@ -290,7 +280,7 @@ func updateHandler(name string) {
 					fmt.Println("data[", curCnt, "/", sumcnt, "]:", buf)
 
 					fmt.Println("phone:", tempTerm.GetPhone())
-					retbuf := tempTerm.MakeFrameMult(term.UpdateReq, 1, tempTerm.GetPhone(), 1, sumcnt, curCnt, buf)
+					retbuf := tempTerm.MakeFrameMult(UpdateReq, 1, tempTerm.GetPhone(), 1, sumcnt, curCnt, buf)
 					tempTerm.Conn.Write(retbuf)
 					var outlog string = ""
 					for _, val := range retbuf {
@@ -333,7 +323,7 @@ func main() {
 	checkError(err)
 	defer listenSock.Close()
 
-	connManger = make(map[string]*term.Terminal)
+	connManger = make(map[string]*Terminal)
 
 	go inputHandler()
 
@@ -361,6 +351,19 @@ func httpServer() {
 
 //获取在线设备
 func listHandler(c *gin.Context) {
+	type DevPageItem struct {
+		Ip    string `json:"ip"`
+		Imei  string `json:"imei"`
+		Phone string `json:"phone"`
+	}
+
+	type DevPageList struct {
+		PageCnt   int           `json:"pagecnt"`
+		PageSize  int           `json:"pagesize"`
+		PageIndex int           `json:"pageindex"`
+		Data      []DevPageItem `json:"data"`
+	}
+
 	fmt.Println("DevPage post")
 	var json DevPage
 	if err := c.ShouldBindJSON(&json); err != nil {
@@ -399,9 +402,10 @@ func listHandler(c *gin.Context) {
 func dataHandler(c *gin.Context) {
 	fmt.Println("data post")
 	type DataReq struct {
-		Imei  string  `json:"imei" binding:"required"`
-		Start float64 `json:"starttime" binding:"required"`
-		End   float64 `json:"endtime" binding:"required"`
+		Imei  string `json:"imei" binding:"required"`
+		Start int64  `json:"starttime" binding:"required"`
+		End   int64  `json:"endtime" binding:"required"`
+		Page  int    `json:"page"`
 	}
 	var json DataReq
 	if err := c.ShouldBindJSON(&json); err != nil {
@@ -409,5 +413,70 @@ func dataHandler(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusBadRequest, gin.H{"state": "OK"})
+	if json.Page == 0 {
+		json.Page = 1
+	}
+
+	//查找数据库
+	type DataItem struct {
+		Imei      string `json:"imei"`
+		Stamp     int64  `json:"stamp"`
+		WarnFlag  uint32 `json:"warnflag"`
+		State     uint32 `json:"state"`
+		Latitude  uint32 `json:"latitude"`
+		Longitude uint32 `json:"longitude"`
+		Altitude  uint16 `json:"altitude"`
+		Speed     uint16 `json:"speed"`
+		Direction uint16 `json:"direction"`
+	}
+
+	type DataResp struct {
+		PageCnt   int        `json:"pagecnt"`
+		PageSize  int        `json:"pagesize"`
+		PageIndex int        `json:"pageindex"`
+		Data      []DataItem `json:"data"`
+	}
+
+	//获取总数
+	gpsdata := new(GPSData)
+	total, err := engine.Where("imei = ? AND stamp > ? AND stamp < ?", json.Imei, time.Unix(json.Start, 0), time.Unix(json.End, 0)).Count(gpsdata)
+	if err != nil {
+		fmt.Println("where err:", err)
+	}
+	fmt.Println("select total:", total)
+
+	var dataresp DataResp
+	dataresp.PageSize = 10
+	dataresp.PageCnt = ((int)(total) + (dataresp.PageSize - 1)) / dataresp.PageSize
+	dataresp.PageIndex = json.Page
+
+	if dataresp.PageIndex > dataresp.PageSize {
+		dataresp.PageIndex = dataresp.PageSize
+	}
+
+	datas := make([]GPSData, 0)
+	startindex := (dataresp.PageIndex - 1) * dataresp.PageSize
+	fmt.Println("start:", startindex)
+	err = engine.Where("imei = ? AND stamp > ? AND stamp < ?", json.Imei, time.Unix(json.Start, 0), time.Unix(json.End, 0)).Limit(dataresp.PageSize, startindex).Find(&datas)
+	if err != nil {
+		fmt.Println("where err:", err)
+	}
+
+	datalist := make([]DataItem, 0)
+	for _, val := range datas {
+		var item DataItem
+		item.Stamp = val.Stamp.Unix()
+		item.Imei = val.Imei
+		item.WarnFlag = val.WarnFlag
+		item.State = val.State
+		item.Latitude = val.Latitude
+		item.Longitude = val.Longitude
+		item.Altitude = val.Altitude
+		item.Speed = val.Speed
+		item.Direction = val.Direction
+		datalist = append(datalist, item)
+	}
+	dataresp.Data = datalist
+
+	c.JSON(http.StatusOK, dataresp)
 }

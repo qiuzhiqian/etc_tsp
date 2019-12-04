@@ -35,9 +35,20 @@ type LogFrame struct {
 	Frame     string `xorm:"Varchar(2048) frame"`
 }
 
-type Cmd struct {
-	CmdName string `form:"cmd" json:"cmd"  binding:"required"`
-	Param   string `form:"param" json:"param" binding:"required"`
+type DevPage struct {
+	Page int `form:"page" json:"page"  binding:"required"`
+}
+
+type DevPageItem struct {
+	Ip   string `json:"ip"`
+	Imei string `json:"imei"`
+}
+
+type DevPageList struct {
+	PageCnt   int           `json:"pagecnt"`
+	PageSize  int           `json:"pagesize"`
+	PageIndex int           `json:"pageindex"`
+	Data      []DevPageItem `json:"data"`
 }
 
 //var connList []net.Conn
@@ -386,22 +397,36 @@ func main() {
 func httpServer() {
 	router := gin.Default()
 
-	router.POST("/cmd", postHandler)
+	router.POST("/api/list", listHandler)
 
 	// By default it serves on :8080 unless a
 	// PORT environment variable was defined.
 	router.Run(":8080")
 }
 
-func postHandler(c *gin.Context) {
-	fmt.Println("cmd post")
-	var json Cmd
+func listHandler(c *gin.Context) {
+	fmt.Println("DevPage post")
+	var json DevPage
 	if err := c.ShouldBindJSON(&json); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	fmt.Println("cmd:", json)
+	fmt.Println("page:", json)
 
-	c.JSON(http.StatusOK, gin.H{"status": "cmd ok"})
+	//c.JSON(http.StatusOK, gin.H{"status": "DevPage ok"})
+	var devpagelist DevPageList
+	devpagelist.PageCnt = 30
+	devpagelist.PageSize = 10
+	devpagelist.PageIndex = json.Page
+
+	datalist := make([]DevPageItem, 0)
+	for i := 0; i < 10; i++ {
+		var item DevPageItem
+		item.Ip = fmt.Sprintf("192.168.1.101:%d", 1901+i)
+		item.Imei = fmt.Sprintf("865523456654%03d", 10*i)
+		datalist = append(datalist, item)
+	}
+	devpagelist.Data = datalist
+	c.JSON(http.StatusOK, devpagelist)
 }

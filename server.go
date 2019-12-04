@@ -40,8 +40,9 @@ type DevPage struct {
 }
 
 type DevPageItem struct {
-	Ip   string `json:"ip"`
-	Imei string `json:"imei"`
+	Ip    string `json:"ip"`
+	Imei  string `json:"imei"`
+	Phone string `json:"phone"`
 }
 
 type DevPageList struct {
@@ -142,7 +143,6 @@ func recvConnMsg(conn net.Conn) {
 }
 
 func inputHandler() {
-	//var buffer [512]byte
 	fmt.Printf("inputHandler.\n")
 
 	rTermCtrl, _ := regexp.Compile("^ctrl [0-9]{1,3}")
@@ -164,55 +164,7 @@ func inputHandler() {
 		}
 
 		if rTermCtrl.MatchString(str) {
-			parList := strings.SplitN(str, " ", 2)
 
-			for _, val := range parList {
-				fmt.Println(val)
-			}
-
-			if len(parList) == 2 {
-				fmt.Println("len p1 ", len(parList[1]))
-				cmdid, _ := strconv.Atoi(parList[1])
-				fmt.Println("terminal ctrl:", cmdid)
-
-				apduBuff := make([]byte, 0)
-				switch cmdid {
-				case 0x01:
-					apduBuff = append(apduBuff, 0x01)
-					apduBuff = append(apduBuff, 0x01)
-					apduBuff = append(apduBuff, 0x01)
-					apduBuff = append(apduBuff, 0x01)
-
-					apduBuff = append(apduBuff, 0x02)
-
-					urlbytes := []byte("UF 0,00000103,http://kingdom-tech.f3322.net:4000/TboxApp_Aoduo_20190925.tar.gz")
-
-					apduBuff = append(apduBuff, urlbytes...)
-
-				case 0x02:
-					apduBuff = append(apduBuff, 0x02)
-				case 0x03:
-					apduBuff = append(apduBuff, 0x03)
-				case 0x04:
-					apduBuff = append(apduBuff, 0x04)
-				case 0x05:
-					apduBuff = append(apduBuff, 0x05)
-				case 0x06:
-					apduBuff = append(apduBuff, 0x06)
-
-					apduBuff = append(apduBuff, byte(2))
-					apduBuff = append(apduBuff, byte(0))
-				case 0x80:
-					apduBuff = append(apduBuff, 0x80)
-				}
-
-				//sendBuf := tm.MakeFrame(0x82,0,apduBuff)
-				//for _, val := range sendBuf {
-				//	fmt.Printf("%02X ", val)
-				//}
-				//fmt.Printf("\n")
-				//(*tm.Conn).Write(sendBuf)
-			}
 		} else if rList.MatchString(str) {
 			for key, value := range connManger {
 				fmt.Println("ip:", key, " ,imei:", value.GetImei(), " iccid:", value.GetIccid())
@@ -229,7 +181,6 @@ func inputHandler() {
 			}
 		}
 	}
-	//fmt.Println("count:", n, ", msg:", string(buffer[:]))
 }
 
 func readFull(rd *bufio.Reader, buff []byte) (int, error) {
@@ -363,13 +314,6 @@ func main() {
 		fmt.Println("sync users ", err)
 	}
 
-	//users.Name = "xml"
-	//users.Age = 29
-	//_, err = engine.Insert(users)
-	//if err != nil {
-	//	fmt.Println(err)
-	//}
-
 	address := ":" + port
 	fmt.Println("address port ", address)
 
@@ -399,11 +343,10 @@ func httpServer() {
 
 	router.POST("/api/list", listHandler)
 
-	// By default it serves on :8080 unless a
-	// PORT environment variable was defined.
 	router.Run(":8080")
 }
 
+//获取在线设备
 func listHandler(c *gin.Context) {
 	fmt.Println("DevPage post")
 	var json DevPage
@@ -414,18 +357,26 @@ func listHandler(c *gin.Context) {
 
 	fmt.Println("page:", json)
 
-	//c.JSON(http.StatusOK, gin.H{"status": "DevPage ok"})
 	var devpagelist DevPageList
-	devpagelist.PageCnt = 30
 	devpagelist.PageSize = 10
+	devpagelist.PageCnt = (len(connManger) + (devpagelist.PageSize - 1)) / devpagelist.PageSize
 	devpagelist.PageIndex = json.Page
 
+	if devpagelist.PageIndex > devpagelist.PageSize {
+		devpagelist.PageIndex = devpagelist.PageSize
+	}
+
 	datalist := make([]DevPageItem, 0)
-	for i := 0; i < 10; i++ {
-		var item DevPageItem
-		item.Ip = fmt.Sprintf("192.168.1.101:%d", 1901+i)
-		item.Imei = fmt.Sprintf("865523456654%03d", 10*i)
-		datalist = append(datalist, item)
+	var index int = 0
+	for _, val := range connManger {
+		if index >= (devpagelist.PageIndex-1)*devpagelist.PageSize && index < devpagelist.PageIndex*devpagelist.PageSize {
+			var item DevPageItem
+			item.Ip = val.Conn.LocalAddr().String()
+			item.Imei = val.GetImei()
+			item.Phone = utils.HexBuffToString(val.GetPhone())
+			datalist = append(datalist, item)
+		}
+		index++
 	}
 	devpagelist.Data = datalist
 	c.JSON(http.StatusOK, devpagelist)

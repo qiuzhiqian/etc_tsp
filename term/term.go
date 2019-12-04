@@ -69,7 +69,7 @@ func deepCopy(dst, src interface{}) error {
 	return gob.NewDecoder(bytes.NewBuffer(buf.Bytes())).Decode(dst)
 }
 
-func (t Terminal) MakeFrame(cmd uint16, ver uint8, phone []byte, seq uint16, apdu []byte) []byte {
+func (t *Terminal) MakeFrame(cmd uint16, ver uint8, phone []byte, seq uint16, apdu []byte) []byte {
 	data := make([]byte, 0)
 	tempbytes := utils.Word2Bytes(cmd)
 	data = append(data, tempbytes...)
@@ -102,7 +102,7 @@ func (t Terminal) MakeFrame(cmd uint16, ver uint8, phone []byte, seq uint16, apd
 	return data
 }
 
-func (t Terminal) MakeFrameMult(cmd uint16, ver uint8, phone []byte, seq, sum, cur uint16, apdu []byte) []byte {
+func (t *Terminal) MakeFrameMult(cmd uint16, ver uint8, phone []byte, seq, sum, cur uint16, apdu []byte) []byte {
 	data := make([]byte, 0)
 	tempbytes := utils.Word2Bytes(cmd)
 	data = append(data, tempbytes...)
@@ -141,7 +141,7 @@ func (t Terminal) MakeFrameMult(cmd uint16, ver uint8, phone []byte, seq, sum, c
 	return data
 }
 
-func (t Terminal) makeApduRegisterAck(res uint8, authkey string) []byte {
+func (t *Terminal) makeApduRegisterAck(res uint8, authkey string) []byte {
 	data := make([]byte, 0)
 	tempbytes := utils.Word2Bytes(t.seqNum)
 	data = append(data, tempbytes...)
@@ -155,7 +155,7 @@ func (t Terminal) makeApduRegisterAck(res uint8, authkey string) []byte {
 	return data
 }
 
-func (t Terminal) makeApduCommonAck(cmdid uint16, res byte) []byte {
+func (t *Terminal) makeApduCommonAck(cmdid uint16, res byte) []byte {
 	data := make([]byte, 0)
 	tempbytes := utils.Word2Bytes(t.seqNum)
 	data = append(data, tempbytes...)
@@ -169,7 +169,7 @@ func (t Terminal) makeApduCommonAck(cmdid uint16, res byte) []byte {
 	return data
 }
 
-func (t Terminal) DataFilter(data []byte) int {
+func (t *Terminal) DataFilter(data []byte) int {
 	//--------------------------------------------------
 	//int iRet = 0;
 	// static int curLen=0;
@@ -195,17 +195,20 @@ func (t Terminal) DataFilter(data []byte) int {
 	}
 }
 
-func (t Terminal) FrameHandle(data []byte) []byte {
+func (t *Terminal) FrameHandle(data []byte) []byte {
 	cmdid := utils.Bytes2Word(data[1:3])
 	t.phoneNum = make([]byte, 10)
-	deepCopy(t.phoneNum, data[6:6+10])
+	//deepCopy(t.phoneNum, data[6:6+10])
+	for index, item := range data[6 : 6+10] {
+		t.phoneNum[index] = item
+	}
 	t.seqNum = utils.Bytes2Word(data[16:18])
 	fmt.Println("cmdid:", cmdid)
 	len := len(data)
 	return t.apduHandle(cmdid, data[18:len-2])
 }
 
-func (t Terminal) apduHandle(cmdType uint16, apdu []byte) []byte {
+func (t *Terminal) apduHandle(cmdType uint16, apdu []byte) []byte {
 	switch cmdType {
 	case register:
 		fmt.Println("rcv register.")
@@ -245,8 +248,14 @@ func (t Terminal) apduHandle(cmdType uint16, apdu []byte) []byte {
 	case login:
 		fmt.Println("rcv login.")
 		authkeylen := apdu[0]
-		t.authkey = string(apdu[1 : 1+authkeylen])
-		t.imei = string(apdu[1+authkeylen : 1+authkeylen+15])
+		tempSlice := make([]byte, authkeylen)
+		copy(tempSlice, apdu[1:1+authkeylen])
+		t.authkey = string(tempSlice)
+
+		tempSlice = make([]byte, 15)
+		copy(tempSlice, apdu[1+authkeylen:1+authkeylen+15])
+		t.imei = string(tempSlice)
+		fmt.Println("imei:", t.imei)
 
 		verArray := apdu[1+authkeylen+15 : 1+authkeylen+15+20]
 
@@ -281,11 +290,11 @@ func (t Terminal) apduHandle(cmdType uint16, apdu []byte) []byte {
 	return nil
 }
 
-func (t Terminal) paramHandle(id byte, data []byte) int {
+func (t *Terminal) paramHandle(id byte, data []byte) int {
 	return 0
 }
 
-func (t Terminal) checkSum(data []byte) byte {
+func (t *Terminal) checkSum(data []byte) byte {
 	var sum byte = 0
 	for _, itemdata := range data {
 		sum ^= itemdata
@@ -293,15 +302,17 @@ func (t Terminal) checkSum(data []byte) byte {
 	return sum
 }
 
-func (t Terminal) GetImei() string {
+func (t *Terminal) GetImei() string {
+	fmt.Println("get imei:", t.imei)
 	return t.imei
 }
 
-func (t Terminal) GetIccid() string {
+func (t *Terminal) GetIccid() string {
 	return t.iccid
 }
 
-func (t Terminal) GetPhone() []byte {
+func (t *Terminal) GetPhone() []byte {
 	//fmt.Println("ret phone:", t.phoneNum)
-	return []byte{0x00, 0x00, 0x00, 0x00, 0x01, 0x72, 0x55, 0x11, 0x11, 0x11}
+	//return []byte{0x00, 0x00, 0x00, 0x00, 0x01, 0x72, 0x55, 0x11, 0x11, 0x11}
+	return t.phoneNum
 }

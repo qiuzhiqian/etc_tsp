@@ -52,6 +52,18 @@ type DevPageList struct {
 	Data      []DevPageItem `json:"data"`
 }
 
+type GPSData struct {
+	Imei      string    `xorm:"pk notnull imei`
+	Stamp     time.Time `xorm:"DateTime pk notnull stamp`
+	WarnFlag  uint32    `xorm:"warnflag"`
+	State     uint32    `xorm:"state"`
+	Latitude  uint32    `xorm:"latitude"`
+	Longitude uint32    `xorm:"longitude"`
+	Altitude  uint32    `xorm:"altitude"`
+	Speed     uint16    `xorm:"speed"`
+	Direction uint16    `xorm:"direction"`
+}
+
 //var connList []net.Conn
 var connManger map[string]*term.Terminal
 
@@ -342,6 +354,7 @@ func httpServer() {
 	router := gin.Default()
 
 	router.POST("/api/list", listHandler)
+	router.POST("/api/data", dataHandler)
 
 	router.Run(":8080")
 }
@@ -380,4 +393,21 @@ func listHandler(c *gin.Context) {
 	}
 	devpagelist.Data = datalist
 	c.JSON(http.StatusOK, devpagelist)
+}
+
+//获取数据
+func dataHandler(c *gin.Context) {
+	fmt.Println("data post")
+	type DataReq struct {
+		Imei  string  `json:"imei" binding:"required"`
+		Start float64 `json:"starttime" binding:"required"`
+		End   float64 `json:"endtime" binding:"required"`
+	}
+	var json DataReq
+	if err := c.ShouldBindJSON(&json); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusBadRequest, gin.H{"state": "OK"})
 }

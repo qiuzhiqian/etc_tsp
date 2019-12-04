@@ -371,7 +371,7 @@ func listHandler(c *gin.Context) {
 	for _, val := range connManger {
 		if index >= (devpagelist.PageIndex-1)*devpagelist.PageSize && index < devpagelist.PageIndex*devpagelist.PageSize {
 			var item DevPageItem
-			item.Ip = val.Conn.LocalAddr().String()
+			item.Ip = val.Conn.RemoteAddr().String()
 			item.Imei = val.GetImei()
 			item.Phone = utils.HexBuffToString(val.GetPhone())
 			datalist = append(datalist, item)

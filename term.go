@@ -93,14 +93,23 @@ func (t *Terminal) MakeFrame(cmd uint16, ver uint8, phone []byte, seq uint16, ap
 	csdata := byte(t.checkSum(data[:]))
 	data = append(data, csdata)
 
-	//转义
-
 	//添加头尾
 	var tmpdata []byte = []byte{0x7e}
-	data = append(tmpdata, data...)
-	data = append(data, 0x7e)
 
-	return data
+	for _, item := range data {
+		if item == 0x7d {
+			fmt.Println("has 0x7d")
+			tmpdata = append(tmpdata, 0x7d, 0x01)
+		} else if item == 0x7e {
+			fmt.Println("has 0x7e")
+			tmpdata = append(tmpdata, 0x7d, 0x02)
+		} else {
+			tmpdata = append(tmpdata, item)
+		}
+	}
+	tmpdata = append(tmpdata, 0x7e)
+
+	return tmpdata
 }
 
 func (t *Terminal) MakeFrameMult(cmd uint16, ver uint8, phone []byte, seq, sum, cur uint16, apdu []byte) []byte {
@@ -136,10 +145,20 @@ func (t *Terminal) MakeFrameMult(cmd uint16, ver uint8, phone []byte, seq, sum, 
 
 	//添加头尾
 	var tmpdata []byte = []byte{0x7e}
-	data = append(tmpdata, data...)
-	data = append(data, 0x7e)
+	for _, item := range data {
+		if item == 0x7d {
+			fmt.Println("has 0x7d")
+			tmpdata = append(tmpdata, 0x7d, 0x01)
+		} else if item == 0x7e {
+			fmt.Println("has 0x7e")
+			tmpdata = append(tmpdata, 0x7d, 0x02)
+		} else {
+			tmpdata = append(tmpdata, item)
+		}
+	}
+	tmpdata = append(tmpdata, 0x7e)
 
-	return data
+	return tmpdata
 }
 
 func (t *Terminal) makeApduRegisterAck(res uint8, authkey string) []byte {

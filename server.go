@@ -328,6 +328,8 @@ func main() {
 
 	connManger = make(map[string]*Terminal)
 
+	ch = make(chan int)
+
 	go inputHandler()
 
 	go httpServer()

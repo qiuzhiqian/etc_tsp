@@ -47,6 +47,7 @@ type Terminal struct {
 const (
 	protoHeader byte = 0x7e
 
+	termAck     uint16 = 0x0001
 	register    uint16 = 0x0100
 	registerAck uint16 = 0x8100
 	unregister  uint16 = 0x0003
@@ -210,6 +211,13 @@ func (t *Terminal) FrameHandle(data []byte) []byte {
 
 func (t *Terminal) apduHandle(cmdType uint16, apdu []byte) []byte {
 	switch cmdType {
+	case termAck:
+		fmt.Println("rcv termAck.")
+		reqId := utils.Bytes2Word(apdu[2:4])
+		fmt.Println("reqId:", reqId)
+		if reqId == UpdateReq {
+			ch <- 1
+		}
 	case register:
 		fmt.Println("rcv register.")
 

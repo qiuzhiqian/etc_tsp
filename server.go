@@ -62,6 +62,8 @@ var port string
 
 var engine *xorm.Engine
 
+var ch chan int
+
 func checkError(err error) {
 	if err != nil {
 		fmt.Printf("Error: %s\n", err.Error())
@@ -289,7 +291,8 @@ func updateHandler(name string) {
 					fmt.Println("---> ", outlog)
 
 					curCnt++
-					time.Sleep(5000 * time.Millisecond)
+					//time.Sleep(5000 * time.Millisecond)
+					<-ch
 
 				} else {
 					fmt.Println("read end")
@@ -301,7 +304,7 @@ func updateHandler(name string) {
 }
 
 func main() {
-	flag.StringVar(&port, "port", "19901", "server port")
+	flag.StringVar(&port, "port", "19902", "server port")
 	flag.Parse()
 
 	var err error
@@ -345,6 +348,19 @@ func httpServer() {
 
 	router.POST("/api/list", listHandler)
 	router.POST("/api/data", dataHandler)
+
+	router.Static("/favicon.ico", "./static/favicon.ico")
+	router.Static("/css", "./static/css")
+	router.Static("/fonts", "./static/fonts")
+	router.Static("/img", "./static/img")
+	router.Static("/js", "./static/js")
+	//router.LoadHTMLGlob("templates/*")
+	router.LoadHTMLFiles("static/index.html")
+	router.GET("/index", func(c *gin.Context) {
+		c.HTML(http.StatusOK, "index.html", gin.H{
+			"title": "Main website",
+		})
+	})
 
 	router.Run(":8080")
 }

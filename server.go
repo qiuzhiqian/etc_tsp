@@ -352,11 +352,11 @@ func httpServer() {
 	router.POST("/api/list", listHandler)
 	router.POST("/api/data", dataHandler)
 
-	//router.Static("/", "./frontend/dist/")
-	router.Static("/css", "./frontend/dist/css")
-	router.Static("/fonts", "./frontend/dist/fonts")
-	router.Static("/img", "./frontend/dist/img")
-	router.Static("/js", "./frontend/dist/js")
+	router.StaticFS("/css", http.Dir("frontend/dist/css"))
+	router.StaticFS("/fonts", http.Dir("frontend/dist/fonts"))
+	router.StaticFS("/img", http.Dir("frontend/dist/img"))
+	router.StaticFS("/js", http.Dir("frontend/dist/js"))
+	router.StaticFile("/favicon.ico", "./frontend/dist/favicon.ico")
 	//router.LoadHTMLGlob("templates/*")
 	router.LoadHTMLFiles("frontend/dist/index.html")
 	router.GET("/index", func(c *gin.Context) {

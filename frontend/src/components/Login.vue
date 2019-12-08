@@ -1,5 +1,5 @@
 <template>
-    <div class="login_form">
+    <div class="login_form" :style="background">
         <Form class="inner_form" ref="formInline" :model="formInline" :rules="ruleInline">
             <FormItem prop="user">
                 <Input prefix="ios-person-outline" type="text" v-model="formInline.user" placeholder="Username" />
@@ -29,6 +29,12 @@
                         { required: true, message: 'Please fill in the password.', trigger: 'blur' },
                         { type: 'string', min: 6, message: 'The password length cannot be less than 6 bits', trigger: 'blur' }
                     ]
+                },
+                background: {
+                    backgroundImage: "url(" + require("../assets/login_bg.jpg") + ")",
+                    backgroundRepeat: "no-repeat",
+                    backgroundSize: "cover",
+                    marginTop: "0px",
                 }
             }
         },

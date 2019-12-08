@@ -1,3 +1,76 @@
+<template>
+    <div class="layout">
+        <Layout style="height:100%;">
+            <Sider ref="side1" hide-trigger collapsible :collapsed-width="78" v-model="isCollapsed">
+                <Menu :active-name="activeName" theme="dark" width="auto" :class="menuitemClasses" @on-select="itemChange">
+                    <MenuItem name="1-1">
+                        <Icon type="ios-cube" />
+                        <span>Devices</span>
+                    </MenuItem>
+                    <MenuItem name="1-2">
+                        <Icon type="ios-pulse" />
+                        <span>Monitor</span>
+                    </MenuItem>
+                    <MenuItem name="1-3">
+                        <Icon type="ios-navigate" />
+                        <span>Map</span>
+                    </MenuItem>
+                </Menu>
+            </Sider>
+            <Layout>
+                <Header :style="{padding: 0}" class="layout-header-bar">
+                    <Icon @click.native="collapsedSider" :class="rotateIcon" :style="{margin: '0 10px'}" type="md-menu" size="24"></Icon>
+                </Header>
+                <Content :style="{margin: '10px', background: '#fff', minHeight: '260px'}">
+                    <Devices v-if="activeName == '1-1'"></Devices>
+                    <GpsTable v-else-if="activeName =='1-2'"></GpsTable>
+                    <MapWidget v-else></MapWidget>
+                </Content>
+                <Footer class="layout-footer-center">2019 &copy; xiamengliang</Footer>
+            </Layout>
+        </Layout>
+    </div>
+</template>
+<script>
+import MapWidget from './components/MapWidget'
+import Devices from './components/Devices'
+import GpsTable from './components/GpsTable'
+    export default {
+        data () {
+            return {
+                isCollapsed: false,
+                activeName: '1-1'
+            }
+        },
+        computed: {
+            rotateIcon () {
+                return [
+                    'menu-icon',
+                    this.isCollapsed ? 'rotate-icon' : ''
+                ];
+            },
+            menuitemClasses () {
+                return [
+                    'menu-item',
+                    this.isCollapsed ? 'collapsed-menu' : ''
+                ]
+            }
+        },
+        methods: {
+            collapsedSider () {
+                this.$refs.side1.toggleCollapse();
+            },
+            itemChange(str){
+                this.activeName = str
+            }
+        },
+        components:{
+          MapWidget,
+          Devices,
+          GpsTable
+        }
+    }
+</script>
 <style scoped>
     .layout{
         border: 1px solid #d7dde4;
@@ -53,66 +126,3 @@
         text-align: center;
     }
 </style>
-<template>
-    <div class="layout">
-        <Layout style="height:100%;">
-            <Sider ref="side1" hide-trigger collapsible :collapsed-width="78" v-model="isCollapsed">
-                <Menu active-name="1-3" theme="dark" width="auto" :class="menuitemClasses">
-                    <MenuItem name="1-1">
-                        <Icon type="ios-navigate"></Icon>
-                        <span>Devices</span>
-                    </MenuItem>
-                    <MenuItem name="1-2">
-                        <Icon type="ios-search"></Icon>
-                        <span>Monitor</span>
-                    </MenuItem>
-                    <MenuItem name="1-3">
-                        <Icon type="ios-settings"></Icon>
-                        <span>Map</span>
-                    </MenuItem>
-                </Menu>
-            </Sider>
-            <Layout>
-                <Header :style="{padding: 0}" class="layout-header-bar">
-                    <Icon @click.native="collapsedSider" :class="rotateIcon" :style="{margin: '0 10px'}" type="md-menu" size="24"></Icon>
-                </Header>
-                <Content :style="{margin: '10px', background: '#fff', minHeight: '260px'}">
-                    <CenterWidget></CenterWidget>
-                </Content>
-                <Footer class="layout-footer-center">2019 &copy; xiamengliang</Footer>
-            </Layout>
-        </Layout>
-    </div>
-</template>
-<script>
-import CenterWidget from './components/CenterWidget'
-    export default {
-        data () {
-            return {
-                isCollapsed: false
-            }
-        },
-        computed: {
-            rotateIcon () {
-                return [
-                    'menu-icon',
-                    this.isCollapsed ? 'rotate-icon' : ''
-                ];
-            },
-            menuitemClasses () {
-                return [
-                    'menu-item',
-                    this.isCollapsed ? 'collapsed-menu' : ''
-                ]
-            }
-        },
-        methods: {
-            collapsedSider () {
-                this.$refs.side1.toggleCollapse();
-            }
-        },
-        components:{
-          CenterWidget
-        }
-    }
-</script>

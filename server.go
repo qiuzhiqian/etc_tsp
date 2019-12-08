@@ -352,7 +352,7 @@ func httpServer() {
 	router.POST("/api/list", listHandler)
 	router.POST("/api/data", dataHandler)
 
-	router.Static("/favicon.ico", "./frontend/dist/favicon.ico")
+	//router.Static("/", "./frontend/dist/")
 	router.Static("/css", "./frontend/dist/css")
 	router.Static("/fonts", "./frontend/dist/fonts")
 	router.Static("/img", "./frontend/dist/img")

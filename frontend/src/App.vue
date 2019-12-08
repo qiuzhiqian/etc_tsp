@@ -49,6 +49,9 @@
         vertical-align: middle;
         font-size: 22px;
     }
+    .layout-footer-center{
+        text-align: center;
+    }
 </style>
 <template>
     <div class="layout">
@@ -76,6 +79,7 @@
                 <Content :style="{margin: '10px', background: '#fff', minHeight: '260px'}">
                     <CenterWidget></CenterWidget>
                 </Content>
+                <Footer class="layout-footer-center">2019 &copy; xiamengliang</Footer>
             </Layout>
         </Layout>
     </div>

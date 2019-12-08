@@ -1,5 +1,16 @@
 # tsp后台服务
 
+## 编译
+```c
+$cd frontend
+
+$yarn build
+
+$cd ..
+
+$go build
+```
+
 ## 技术栈
 ### 后端
 - golang

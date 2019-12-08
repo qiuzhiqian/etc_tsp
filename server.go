@@ -17,8 +17,9 @@ import (
 	"github.com/go-xorm/xorm"
 	_ "github.com/lib/pq"
 
-	"github.com/gin-gonic/gin"
 	"net/http"
+
+	"github.com/gin-gonic/gin"
 )
 
 type Users struct {
@@ -351,13 +352,13 @@ func httpServer() {
 	router.POST("/api/list", listHandler)
 	router.POST("/api/data", dataHandler)
 
-	router.Static("/favicon.ico", "./static/favicon.ico")
-	router.Static("/css", "./static/css")
-	router.Static("/fonts", "./static/fonts")
-	router.Static("/img", "./static/img")
-	router.Static("/js", "./static/js")
+	router.Static("/favicon.ico", "./frontend/dist/favicon.ico")
+	router.Static("/css", "./frontend/dist/css")
+	router.Static("/fonts", "./frontend/dist/fonts")
+	router.Static("/img", "./frontend/dist/img")
+	router.Static("/js", "./frontend/dist/js")
 	//router.LoadHTMLGlob("templates/*")
-	router.LoadHTMLFiles("static/index.html")
+	router.LoadHTMLFiles("frontend/dist/index.html")
 	router.GET("/index", func(c *gin.Context) {
 		c.HTML(http.StatusOK, "index.html", gin.H{
 			"title": "Main website",

@@ -10,7 +10,7 @@
       <Option v-for="item in searchList" :value="item.value" :key="item.value">{{ item.label }}</Option>
     </Select>
     <Input v-model="value" placeholder="Enter something..." style="width: 300px" />
-    <Button @click="getdata">Search</Button>
+    <Button @click="getdata(1)">Search</Button>
 
     <Table stripe :columns="columns1" :data="data1"></Table>
     <Page
@@ -92,7 +92,7 @@ export default {
       window.console.log(t1);
       window.console.log(t2);
     },
-    getdata: function() {
+    getdata: function(index) {
       if (this.value === "") {
         return;
       }
@@ -103,13 +103,14 @@ export default {
 
       window.console.log("time1", this.datepick[0].getTime() / 1000);
       window.console.log("time2", this.datepick[1].getTime() / 1000);
+      window.console.log("index:", index);
 
       this.axios
         .post("/api/data", {
           imei: this.value,
           starttime: this.datepick[0].getTime() / 1000,
           endtime: this.datepick[1].getTime() / 1000,
-          page: 1
+          page: index
         })
         .then(response => {
           window.console.log(response.data);
@@ -145,8 +146,9 @@ export default {
           window.console.log(error);
         });
     },
-    pagechange: function(index, event) {
-      window.console.log(index, event);
+    pagechange: function(index) {
+      window.console.log(index);
+      this.getdata(index);
     }
   }
 };

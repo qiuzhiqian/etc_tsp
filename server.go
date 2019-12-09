@@ -469,8 +469,10 @@ func dataHandler(c *gin.Context) {
 	dataresp.PageCnt = ((int)(total) + (dataresp.PageSize - 1)) / dataresp.PageSize
 	dataresp.PageIndex = json.Page
 
-	if dataresp.PageIndex > dataresp.PageSize {
-		dataresp.PageIndex = dataresp.PageSize
+	fmt.Println("page:", json.Page)
+
+	if dataresp.PageIndex > dataresp.PageCnt {
+		dataresp.PageIndex = dataresp.PageCnt
 	}
 
 	datas := make([]GPSData, 0)

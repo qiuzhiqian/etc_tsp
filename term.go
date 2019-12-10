@@ -217,7 +217,10 @@ func (t *Terminal) DataFilter(data []byte) int {
 
 func (t *Terminal) FrameHandle(data []byte) []byte {
 	cmdid := utils.Bytes2Word(data[1:3])
-	t.phoneNum = make([]byte, 10)
+	if t.phoneNum == nil {
+		t.phoneNum = make([]byte, 10)
+	}
+
 	//deepCopy(t.phoneNum, data[6:6+10])
 	for index, item := range data[6 : 6+10] {
 		t.phoneNum[index] = item

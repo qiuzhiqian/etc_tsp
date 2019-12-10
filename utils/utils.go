@@ -89,7 +89,7 @@ func HexBuffToString(hex []byte) string {
 		}
 	}
 
-	if index <= 0 {
+	if index < 0 {
 		return string("")
 	}
 

@@ -94,16 +94,19 @@ export default {
     },
     getdata: function(index) {
       if (this.value === "") {
+        this.$Message.warning("Please imei!");
         return;
       }
 
       if (this.datepick.length != 2) {
+        this.$Message.warning("Please select start and end time!");
         return;
       }
 
-      window.console.log("time1", this.datepick[0].getTime() / 1000);
-      window.console.log("time2", this.datepick[1].getTime() / 1000);
-      window.console.log("index:", index);
+      if (this.datepick[0] == "" || this.datepick[1] == "") {
+        this.$Message.warning("Please select start and end time!");
+        return;
+      }
 
       this.axios
         .post("/api/data", {

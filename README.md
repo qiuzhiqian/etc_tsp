@@ -21,6 +21,17 @@ $go build
 ### 前端
 - vue
 - iview/ant designer
+
+## 路由
+后端路由同一分配到/上面，子页面路由有前端管理
+
+```
+/#/login
+登录页面路由
+
+/#/mainpage
+主页面路由
+```
   
 ## API
 查询在线设备列表

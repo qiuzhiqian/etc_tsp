@@ -372,7 +372,7 @@ func httpServer() {
 	router.StaticFile("/favicon.ico", "./frontend/dist/favicon.ico")
 	//router.LoadHTMLGlob("templates/*")
 	router.LoadHTMLFiles("frontend/dist/index.html")
-	router.GET("/index", func(c *gin.Context) {
+	router.GET("/", func(c *gin.Context) {
 		c.HTML(http.StatusOK, "index.html", gin.H{
 			"title": "Main website",
 		})

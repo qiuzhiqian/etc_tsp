@@ -4,6 +4,7 @@ import BaiduMap from 'vue-baidu-map'
 import ViewUI from 'view-design';
 import 'view-design/dist/styles/iview.css';
 import utils from './js/utils.js'
+import router from './js/router.js'
 
 import axios from 'axios'
 import VueAxios from 'vue-axios'
@@ -21,5 +22,6 @@ Vue.use(BaiduMap, {
 })
 
 new Vue({
+  router,
   render: h => h(App),
 }).$mount('#app')

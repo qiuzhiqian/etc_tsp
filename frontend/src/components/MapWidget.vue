@@ -2,7 +2,7 @@
   <div class="map_container">
     <Input v-model="value" placeholder="Enter IMEI..." style="width: 300px" @on-enter="doEnter" />
     <baidu-map
-      class="map"
+      class="map_center"
       :center="center"
       :zoom="zoom"
       scroll-wheel-zoom="true"
@@ -76,9 +76,12 @@ export default {
 <style scoped>
 .map_container {
   height: 100%;
+  display: -webkit-flex; /* Safari */
+  display: flex;
+  flex-direction: column;
 }
 
-.map {
-  height: 100%;
+.map_center {
+  flex-grow: 1;
 }
 </style>

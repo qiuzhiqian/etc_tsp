@@ -33,7 +33,7 @@
             size="24"
           ></Icon>
         </Header>
-        <Content :style="{margin: '10px', background: '#fff', minHeight: '260px'}">
+        <Content :style="{margin: '10px', background: '#fff', height: '100%'}">
           <Devices v-if="activeName == '1-1'"></Devices>
           <GpsTable v-else-if="activeName =='1-2'"></GpsTable>
           <MapWidget v-else></MapWidget>

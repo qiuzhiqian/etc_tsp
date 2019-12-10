@@ -19,6 +19,7 @@ import (
 
 	"net/http"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )
 
@@ -348,9 +349,21 @@ func main() {
 
 func httpServer() {
 	router := gin.Default()
+	router.Use(cors.New(cors.Config{
+		AllowMethods:     []string{"GET", "PUT", "PATCH"},
+		AllowHeaders:     []string{"Origin"},
+		ExposeHeaders:    []string{"Content-Length"},
+		AllowCredentials: true,
+		AllowOriginFunc: func(origin string) bool {
+			fmt.Println("origin:", origin)
+			return true
+		},
+		MaxAge: 12 * time.Hour,
+	}))
 
 	router.POST("/api/list", listHandler)
 	router.POST("/api/data", dataHandler)
+	router.POST("/api/nowgps", nowGpsHandler)
 
 	router.StaticFS("/css", http.Dir("frontend/dist/css"))
 	router.StaticFS("/fonts", http.Dir("frontend/dist/fonts"))
@@ -500,4 +513,51 @@ func dataHandler(c *gin.Context) {
 	dataresp.Data = datalist
 
 	c.JSON(http.StatusOK, dataresp)
+}
+
+//获取数据
+func nowGpsHandler(c *gin.Context) {
+	fmt.Println("nowGps post")
+	type DataReq struct {
+		Imei string `json:"imei" binding:"required"`
+	}
+	var json DataReq
+	if err := c.ShouldBindJSON(&json); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	//查找数据库
+	type DataItem struct {
+		Imei      string `json:"imei"`
+		Stamp     int64  `json:"stamp"`
+		WarnFlag  uint32 `json:"warnflag"`
+		State     uint32 `json:"state"`
+		Latitude  uint32 `json:"latitude"`
+		Longitude uint32 `json:"longitude"`
+		Altitude  uint16 `json:"altitude"`
+		Speed     uint16 `json:"speed"`
+		Direction uint16 `json:"direction"`
+	}
+
+	//获取总数
+	gpsdata := new(GPSData)
+	has, err := engine.Where("imei = ? AND state > 0", json.Imei).Desc("stamp").Limit(1).Get(gpsdata)
+	if err != nil {
+		fmt.Println("where err:", err)
+	}
+	fmt.Println("has:", has)
+
+	var item DataItem
+	item.Stamp = gpsdata.Stamp.Unix()
+	item.Imei = gpsdata.Imei
+	item.WarnFlag = gpsdata.WarnFlag
+	item.State = gpsdata.State
+	item.Latitude = gpsdata.Latitude
+	item.Longitude = gpsdata.Longitude
+	item.Altitude = gpsdata.Altitude
+	item.Speed = gpsdata.Speed
+	item.Direction = gpsdata.Direction
+
+	c.JSON(http.StatusOK, item)
 }

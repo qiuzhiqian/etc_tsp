@@ -40,3 +40,10 @@ $ curl -H "Content-Type:application/json" -X POST --data '{"imei":"8655010439546
 
 {"pagecnt":2,"pagesize":10,"pageindex":2,"data":[{"imei":"865501043954677","stamp":1575453783,"warnflag":0,"state":3,"latitude":22585442,"longitude":113912651,"altitude":315,"speed":0,"direction":194},{"imei":"865501043954677","stamp":1575453788,"warnflag":0,"state":3,"latitude":22585446,"longitude":113912657,"altitude":340,"speed":0,"direction":194},{"imei":"865501043954677","stamp":1575453793,"warnflag":0,"state":3,"latitude":22585447,"longitude":113912659,"altitude":343,"speed":0,"direction":194},{"imei":"865501043954677","stamp":1575453798,"warnflag":0,"state":3,"latitude":22585447,"longitude":113912659,"altitude":345,"speed":0,"direction":194},{"imei":"865501043954677","stamp":1575453803,"warnflag":0,"state":3,"latitude":22585442,"longitude":113912664,"altitude":356,"speed":0,"direction":193},{"imei":"865501043954677","stamp":1575453809,"warnflag":0,"state":3,"latitude":22585447,"longitude":113912669,"altitude":374,"speed":0,"direction":193},{"imei":"865501043954677","stamp":1575453814,"warnflag":0,"state":3,"latitude":22585448,"longitude":113912673,"altitude":366,"speed":0,"direction":149},{"imei":"865501043954677","stamp":1575453818,"warnflag":0,"state":3,"latitude":22585447,"longitude":113912676,"altitude":374,"speed":0,"direction":149},{"imei":"865501043954677","stamp":1575453823,"warnflag":0,"state":3,"latitude":22585446,"longitude":113912678,"altitude":371,"speed":0,"direction":149}]}
 ```
+
+查询最新的GPS数据，供地图定位
+```c
+$ curl -H "Content-Type:application/json" -X POST --data '{"imei":"865501043954677"}' http://localhost:8080/api/nowgps 
+
+{"imei":"865501043954677","stamp":1575861194,"warnflag":0,"state":3,"latitude":22585422,"longitude":113912639,"altitude":373,"speed":0,"direction":76}
+```

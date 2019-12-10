@@ -1,6 +1,15 @@
 <template>
   <div>
-    <Table stripe :columns="columns1" :data="data1"></Table>
+    <Table stripe :columns="columns1" :data="data1">
+      <template slot-scope="{ row }" slot="imei">
+        <strong>{{ row.imei }}</strong>
+      </template>
+      <template slot-scope="{ row }" slot="action">
+        <Button type="primary" size="small" style="margin-right: 5px" @click="toMap(row.imei)">Map</Button>
+        <Button type="primary" size="small" style="margin-right: 5px">Monitor</Button>
+        <Button type="primary" size="small" style="margin-right: 5px">Update</Button>
+      </template>
+    </Table>
     <Page
       :current="current"
       :total="total"
@@ -21,11 +30,17 @@ export default {
         },
         {
           title: "IMEI",
-          key: "imei"
+          slot: "imei"
         },
         {
           title: "PhoneNum",
           key: "phoneNum"
+        },
+        {
+          title: "Action",
+          slot: "action",
+          width: 300,
+          align: "center"
         }
       ],
       data1: [],
@@ -64,6 +79,9 @@ export default {
     pagechange: function(index) {
       window.console.log(index);
       this.getdata(index);
+    },
+    toMap: function(param) {
+      window.console.log("toMap:", param);
     }
   },
   mounted: function() {

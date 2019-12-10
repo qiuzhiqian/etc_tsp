@@ -130,6 +130,8 @@ export default {
   font-size: 22px;
 }
 .layout-footer-center {
+  height: 20px;
+  padding: 0px 20px;
   text-align: center;
 }
 </style>

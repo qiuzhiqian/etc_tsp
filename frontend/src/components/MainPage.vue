@@ -28,15 +28,28 @@
           <Icon
             @click.native="collapsedSider"
             :class="rotateIcon"
-            :style="{margin: '0 10px'}"
+            :style="{margin: '10px 10px'}"
             type="md-menu"
             size="24"
           ></Icon>
         </Header>
         <Content :style="{margin: '10px', background: '#fff', height: '100%'}">
-          <Devices v-if="activeName == '1-1'"></Devices>
-          <GpsTable v-else-if="activeName =='1-2'"></GpsTable>
-          <MapWidget v-else></MapWidget>
+          <div class="main_container">
+            <Breadcrumb>
+              <BreadcrumbItem to="/">
+                <Icon type="ios-home-outline"></Icon>Home
+              </BreadcrumbItem>
+              <BreadcrumbItem to="/components/breadcrumb">
+                <Icon type="logo-buffer"></Icon>Components
+              </BreadcrumbItem>
+              <BreadcrumbItem>
+                <Icon type="ios-cafe"></Icon>Breadcrumb
+              </BreadcrumbItem>
+            </Breadcrumb>
+            <Devices v-if="activeName == '1-1'" class="main_inner"></Devices>
+            <GpsTable v-else-if="activeName =='1-2'" class="main_inner"></GpsTable>
+            <MapWidget v-else class="main_inner"></MapWidget>
+          </div>
         </Content>
         <Footer class="layout-footer-center">2019 &copy; xiamengliang</Footer>
       </Layout>
@@ -133,5 +146,16 @@ export default {
   height: 20px;
   padding: 0px 20px;
   text-align: center;
+}
+
+.main_container {
+  height: 100%;
+  display: -webkit-flex; /* Safari */
+  display: flex;
+  flex-direction: column;
+}
+
+.main_inner {
+  flex-grow: 1;
 }
 </style>

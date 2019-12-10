@@ -75,7 +75,6 @@ export default {
 <!-- Add "scoped" attribute to limit CSS to this component only -->
 <style scoped>
 .map_container {
-  height: 100%;
   display: -webkit-flex; /* Safari */
   display: flex;
   flex-direction: column;

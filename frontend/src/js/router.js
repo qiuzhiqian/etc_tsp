@@ -7,12 +7,23 @@ Vue.use(VueRouter)
 import login from '../components/Login.vue';
 import mainPage from '../components/MainPage.vue';
 
+import MapWidget from "../components/MapWidget.vue";
+import Devices from "../components/Devices.vue";
+import GpsTable from "../components/GpsTable.vue";
+
 //定义routes路由的集合，数组类型
 const routes = [
     //单个路由均为对象类型，path代表的是路径，component代表组件
     { path: '/', redirect: '/login' },
     { path: '/login', component: login },
-    { path: "/mainpage", component: mainPage }
+    {
+        path: "/mainpage", component: mainPage,
+        children: [
+            { path: 'devices', name: 'devices', component: Devices },
+            { path: 'gpstable', name: 'gpstable', component: GpsTable },
+            { path: 'mapwidget', name: 'mapwidget', component: MapWidget }
+        ]
+    }
 ]
 
 //实例化VueRouter并将routes添加进去

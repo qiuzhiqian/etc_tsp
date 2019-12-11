@@ -66,7 +66,7 @@ export default {
       this.$refs[name].validate(valid => {
         if (valid) {
           this.$Message.success("Success!");
-          this.$router.push("/mainpage");
+          this.$router.push("/mainpage/devices");
         } else {
           this.$Message.error("Fail!");
         }

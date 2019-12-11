@@ -2,22 +2,16 @@
   <div class="layout">
     <Layout style="height:100%;">
       <Sider ref="side1" hide-trigger collapsible :collapsed-width="78" v-model="isCollapsed">
-        <Menu
-          :active-name="activeName"
-          theme="dark"
-          width="auto"
-          :class="menuitemClasses"
-          @on-select="itemChange"
-        >
-          <MenuItem name="1-1">
+        <Menu :active-name="activeName" theme="dark" width="auto" :class="menuitemClasses">
+          <MenuItem name="1-1" to="/mainpage/devices">
             <Icon type="ios-cube" />
             <span>Devices</span>
           </MenuItem>
-          <MenuItem name="1-2">
+          <MenuItem name="1-2" to="/mainpage/gpstable">
             <Icon type="ios-pulse" />
             <span>Monitor</span>
           </MenuItem>
-          <MenuItem name="1-3">
+          <MenuItem name="1-3" to="/mainpage/mapwidget">
             <Icon type="ios-navigate" />
             <span>Map</span>
           </MenuItem>
@@ -46,9 +40,7 @@
                 <Icon type="ios-cafe"></Icon>Breadcrumb
               </BreadcrumbItem>
             </Breadcrumb>
-            <Devices v-if="activeName == '1-1'" class="main_inner"></Devices>
-            <GpsTable v-else-if="activeName =='1-2'" class="main_inner"></GpsTable>
-            <MapWidget v-else class="main_inner"></MapWidget>
+            <router-view class="main_inner"></router-view>
           </div>
         </Content>
         <Footer class="layout-footer-center">2019 &copy; xiamengliang</Footer>
@@ -57,9 +49,6 @@
   </div>
 </template>
 <script>
-import MapWidget from "./MapWidget";
-import Devices from "./Devices";
-import GpsTable from "./GpsTable";
 export default {
   data() {
     return {
@@ -78,15 +67,7 @@ export default {
   methods: {
     collapsedSider() {
       this.$refs.side1.toggleCollapse();
-    },
-    itemChange(str) {
-      this.activeName = str;
     }
-  },
-  components: {
-    MapWidget,
-    Devices,
-    GpsTable
   }
 };
 </script>

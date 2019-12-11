@@ -9,6 +9,14 @@
       @ready="readyhandler"
     >
       <bm-marker :position="markPoint"></bm-marker>
+      <bm-polyline
+        :path="polylinePath"
+        stroke-color="blue"
+        :stroke-opacity="0.5"
+        :stroke-weight="2"
+        :editing="true"
+        @lineupdate="updatePolylinePath"
+      ></bm-polyline>
     </baidu-map>
   </div>
 </template>
@@ -20,12 +28,12 @@ export default {
       center: { lng: 0, lat: 0 },
       markPoint: { lng: 0, lat: 0 },
       zoom: 3,
-      value: ""
+      value: "",
+      polylinePath: []
     };
   },
   methods: {
-    readyhandler({ BMap, map }) {
-      window.console.log(BMap, map);
+    readyhandler() {
       this.center.lng = 113.912593;
       this.center.lat = 22.585452;
       this.markPoint.lng = 113.912593;
@@ -60,6 +68,21 @@ export default {
           var bdloc = this.utils.wgs2bd(this.markPoint.lat, this.markPoint.lng);
           this.markPoint.lat = bdloc[0];
           this.markPoint.lng = bdloc[1];
+
+          this.polylinePath = [
+            {
+              lng: this.markPoint.lng,
+              lat: this.markPoint.lat
+            },
+            {
+              lng: this.markPoint.lng - 0.01,
+              lat: this.markPoint.lat + 0.01
+            },
+            {
+              lng: this.markPoint.lng - 0.02,
+              lat: this.markPoint.lat
+            }
+          ];
         })
         .catch(error => {
           window.console.log(error);

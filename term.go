@@ -333,6 +333,18 @@ func (t *Terminal) apduHandle(cmdType uint16, apdu []byte) []byte {
 		gpsdata.Direction = utils.Bytes2Word(apdu[index : index+2])
 		index += 2
 
+		if (gpsdata.State & 0x00000001) > 0 {
+			gpsdata.AccState = 1
+		} else {
+			gpsdata.AccState = 0
+		}
+
+		if (gpsdata.State & 0x00000002) > 0 {
+			gpsdata.GpsState = 1
+		} else {
+			gpsdata.GpsState = 0
+		}
+
 		_, err := engine.Insert(gpsdata)
 		if err != nil {
 			fmt.Println("insert gps err:", err)

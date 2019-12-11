@@ -56,7 +56,6 @@ export default {
           page: index
         })
         .then(response => {
-          window.console.log(response.data);
           this.data1.splice(0, this.data1.length);
           for (var i = 0, len = response.data.data.length; i < len; i++) {
             var item = {
@@ -70,7 +69,6 @@ export default {
           this.total = response.data.pagecnt * response.data.pagesize;
           this.pagesize = response.data.pagesize;
           this.current = response.data.pageindex;
-          window.console.log(this.data1);
         })
         .catch(error => {
           window.console.log(error);

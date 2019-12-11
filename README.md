@@ -58,3 +58,10 @@ $ curl -H "Content-Type:application/json" -X POST --data '{"imei":"8655010439546
 
 {"imei":"865501043954677","stamp":1575861194,"warnflag":0,"state":3,"latitude":22585422,"longitude":113912639,"altitude":373,"speed":0,"direction":76}
 ```
+
+登录验证
+```c
+curl -H "Content-Type:application/json" -X POST --data '{"user":"1234566","password":"sdfasfdadf"}' http://localhost:8080/api/login
+
+{"token":"xdfasZsdfa2DsJsfa2"}
+```

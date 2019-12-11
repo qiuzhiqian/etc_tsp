@@ -66,7 +66,18 @@ export default {
       this.$refs[name].validate(valid => {
         if (valid) {
           this.$Message.success("Success!");
-          this.$router.push("/mainpage/devices");
+          this.axios
+            .post("/api/login", {
+              user: this.formInline.user,
+              password: this.formInline.password
+            })
+            .then(response => {
+              window.console.log(response.data);
+              this.$router.push("/mainpage/devices");
+            })
+            .catch(error => {
+              window.console.log(error);
+            });
         } else {
           this.$Message.error("Fail!");
         }

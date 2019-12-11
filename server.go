@@ -45,6 +45,8 @@ type GPSData struct {
 	Stamp     time.Time `xorm:"DateTime pk notnull stamp`
 	WarnFlag  uint32    `xorm:"warnflag"`
 	State     uint32    `xorm:"state"`
+	AccState  uint8     `xorm:"accstate"`
+	GpsState  uint8     `xorm:"gpsstate"`
 	Latitude  uint32    `xorm:"latitude"`
 	Longitude uint32    `xorm:"longitude"`
 	Altitude  uint16    `xorm:"altitude"`
@@ -364,6 +366,7 @@ func httpServer() {
 	router.POST("/api/list", listHandler)
 	router.POST("/api/data", dataHandler)
 	router.POST("/api/nowgps", nowGpsHandler)
+	router.POST("/api/login", loginHandler)
 
 	router.StaticFS("/css", http.Dir("frontend/dist/css"))
 	router.StaticFS("/fonts", http.Dir("frontend/dist/fonts"))
@@ -560,4 +563,27 @@ func nowGpsHandler(c *gin.Context) {
 	item.Direction = gpsdata.Direction
 
 	c.JSON(http.StatusOK, item)
+}
+
+func loginHandler(c *gin.Context) {
+	fmt.Println("login post")
+	type DataReq struct {
+		User     string `json:"user" binding:"required"`
+		Password string `json:"password" binding:"required"`
+	}
+	var json DataReq
+	if err := c.ShouldBindJSON(&json); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	//查找数据库
+	//该用户存在
+	type DataResp struct {
+		Token string `json:"token"`
+	}
+	var resp DataResp
+	resp.Token = "xdfasZsdfa2DsJsfa2"
+
+	c.JSON(http.StatusOK, resp)
 }

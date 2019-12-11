@@ -579,6 +579,7 @@ func loginHandler(c *gin.Context) {
 
 	//查找数据库
 	//该用户存在
+	//后面集成jwt
 	type DataResp struct {
 		Token string `json:"token"`
 	}

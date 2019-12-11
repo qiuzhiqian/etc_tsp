@@ -1,5 +1,21 @@
 # tsp后台服务
 
+## 预览
+
+登录界面:
+![login](./doc/img/login_1.png)
+
+主页面包括：设备列表，数据列表以及地图导航
+
+设备列表:
+![devices](./doc/img/devices_1.png)
+
+数据列表:
+![monitor](./doc/img/monitor_1.png)
+
+地图导航:
+![map](./doc/img/map_1.png)
+
 ## 编译
 ```c
 $cd frontend
@@ -17,15 +33,21 @@ $go build
 - gin
 - postgresql
 - xorm
+- jwt
 
 ### 前端
 - vue
 - iview/ant designer
+- vue-router
+- axios
 
 ## 路由
 后端路由同一分配到/上面，子页面路由有前端管理
 
 ```
+/
+默认页，被重定向到/#/login
+
 /#/login
 登录页面路由
 

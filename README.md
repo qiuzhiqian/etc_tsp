@@ -1,20 +1,19 @@
 # tsp后台服务
 
 ## 预览
-
-登录界面:
-![login](./doc/img/login_1.png)
+登录界面:  
+![login](https://raw.githubusercontent.com/qiuzhiqian/etc_tsp/master/doc/img/login_1.png)
 
 主页面包括：设备列表，数据列表以及地图导航
 
-设备列表:
-![devices](./doc/img/devices_1.png)
+设备列表:  
+![devices](https://raw.githubusercontent.com/qiuzhiqian/etc_tsp/master/doc/img/devices_1.png)
 
-数据列表:
-![monitor](./doc/img/monitor_1.png)
+数据列表:  
+![monitor](https://raw.githubusercontent.com/qiuzhiqian/etc_tsp/master/doc/img/monitor_1.png)
 
-地图导航:
-![map](./doc/img/map_1.png)
+地图导航:  
+![map](https://raw.githubusercontent.com/qiuzhiqian/etc_tsp/master/doc/img/map_1.png)
 
 ## 编译
 ```c
@@ -54,7 +53,7 @@ $go build
 /#/mainpage
 主页面路由
 ```
-  
+
 ## API
 查询在线设备列表
 ```c

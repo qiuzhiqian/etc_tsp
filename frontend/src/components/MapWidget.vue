@@ -1,6 +1,14 @@
 <template>
   <div class="map_container">
-    <Input v-model="value" placeholder="Enter IMEI..." style="width: 300px" @on-enter="doEnter" />
+    <div>
+      <DatePicker
+        type="datetimerange"
+        v-model="datepick"
+        placeholder="Select date and time"
+        style="width: 300px"
+      ></DatePicker>
+      <Input v-model="value" placeholder="Enter IMEI..." style="width: 300px" @on-enter="doEnter" />
+    </div>
     <baidu-map
       class="map_center"
       :center="center"
@@ -29,7 +37,8 @@ export default {
       markPoint: { lng: 0, lat: 0 },
       zoom: 3,
       value: "",
-      polylinePath: []
+      polylinePath: [],
+      datepick: []
     };
   },
   methods: {
@@ -42,6 +51,16 @@ export default {
     },
     getNowGps: function(imeistr) {
       if (imeistr === "") {
+        return;
+      }
+
+      if (this.datepick.length != 2) {
+        this.$Message.warning("Please select start and end time!");
+        return;
+      }
+
+      if (this.datepick[0] == "" || this.datepick[1] == "") {
+        this.$Message.warning("Please select start and end time!");
         return;
       }
 
@@ -68,21 +87,49 @@ export default {
           var bdloc = this.utils.wgs2bd(this.markPoint.lat, this.markPoint.lng);
           this.markPoint.lat = bdloc[0];
           this.markPoint.lng = bdloc[1];
+        })
+        .catch(error => {
+          window.console.log(error);
+        });
 
-          this.polylinePath = [
-            {
-              lng: this.markPoint.lng,
-              lat: this.markPoint.lat
-            },
-            {
-              lng: this.markPoint.lng - 0.01,
-              lat: this.markPoint.lat + 0.01
-            },
-            {
-              lng: this.markPoint.lng - 0.02,
-              lat: this.markPoint.lat
+      this.axios
+        .post("/api/gpsmap", {
+          imei: imeistr,
+          starttime: this.datepick[0].getTime() / 1000,
+          endtime: this.datepick[1].getTime() / 1000
+        })
+        .then(response => {
+          window.console.log("len:", response.data.length);
+          this.polylinePath.splice(0, this.polylinePath.length);
+          for (var i = 0, len = response.data.length; i < len; i++) {
+            if (
+              response.data[i].latitude == 0 ||
+              response.data[i].longitude == 0
+            ) {
+              continue;
             }
-          ];
+
+            if (
+              i > 0 &&
+              Math.abs(
+                response.data[i].latitude - response.data[i - 1].latitude
+              ) < 500 &&
+              Math.abs(
+                response.data[i].longitude - response.data[i - 1].longitude
+              ) < 500
+            ) {
+              continue;
+            }
+            var bdloc = this.utils.wgs2bd(
+              response.data[i].latitude / 1000000,
+              response.data[i].longitude / 1000000
+            );
+            this.polylinePath.push({
+              lng: bdloc[1],
+              lat: bdloc[0]
+            });
+          }
+          window.console.log("len2:", this.polylinePath.length);
         })
         .catch(error => {
           window.console.log(error);

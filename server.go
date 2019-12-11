@@ -366,6 +366,7 @@ func httpServer() {
 	router.POST("/api/list", listHandler)
 	router.POST("/api/data", dataHandler)
 	router.POST("/api/nowgps", nowGpsHandler)
+	router.POST("/api/gpsmap", gpsMapHandler)
 	router.POST("/api/login", loginHandler)
 
 	router.StaticFS("/css", http.Dir("frontend/dist/css"))
@@ -563,6 +564,53 @@ func nowGpsHandler(c *gin.Context) {
 	item.Direction = gpsdata.Direction
 
 	c.JSON(http.StatusOK, item)
+}
+
+func gpsMapHandler(c *gin.Context) {
+	fmt.Println("data post")
+	type DataReq struct {
+		Imei  string `json:"imei" binding:"required"`
+		Start int64  `json:"starttime" binding:"required"`
+		End   int64  `json:"endtime" binding:"required"`
+	}
+	var json DataReq
+	if err := c.ShouldBindJSON(&json); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	//查找数据库
+	type DataItem struct {
+		Imei      string `json:"imei"`
+		Stamp     int64  `json:"stamp"`
+		Latitude  uint32 `json:"latitude"`
+		Longitude uint32 `json:"longitude"`
+		Altitude  uint16 `json:"altitude"`
+		Speed     uint16 `json:"speed"`
+		Direction uint16 `json:"direction"`
+	}
+
+	//获取总数
+	gpsmap := make([]GPSData, 0)
+	err := engine.Where("imei = ? AND stamp > ? AND stamp < ? AND gpsstate = ?", json.Imei, time.Unix(json.Start, 0), time.Unix(json.End, 0), 1).Asc("stamp").Find(&gpsmap)
+	if err != nil {
+		fmt.Println("where err:", err)
+	}
+
+	datalist := make([]DataItem, 0)
+	for _, val := range gpsmap {
+		var item DataItem
+		item.Stamp = val.Stamp.Unix()
+		item.Imei = val.Imei
+		item.Latitude = val.Latitude
+		item.Longitude = val.Longitude
+		item.Altitude = val.Altitude
+		item.Speed = val.Speed
+		item.Direction = val.Direction
+		datalist = append(datalist, item)
+	}
+
+	c.JSON(http.StatusOK, datalist)
 }
 
 func loginHandler(c *gin.Context) {

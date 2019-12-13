@@ -56,6 +56,7 @@ const (
 	gpsinfo     uint16 = 0x0200
 	platAck     uint16 = 0x8001
 	UpdateReq   uint16 = 0x8108
+	CtrlReq     uint16 = 0x8105
 )
 
 func init() {
@@ -184,6 +185,16 @@ func (t *Terminal) makeApduCommonAck(cmdid uint16, res byte) []byte {
 	data = append(data, tempbytes...)
 
 	data = append(data, res)
+
+	fmt.Println("apdu:", data)
+	return data
+}
+
+func (t *Terminal) makeApduCtrl(cmdid byte, param string) []byte {
+	data := make([]byte, 0)
+
+	data = append(data, cmdid)
+	data = append(data, param...)
 
 	fmt.Println("apdu:", data)
 	return data

@@ -368,6 +368,8 @@ func httpServer() {
 	router.POST("/api/nowgps", nowGpsHandler)
 	router.POST("/api/gpsmap", gpsMapHandler)
 	router.POST("/api/login", loginHandler)
+	router.POST("/api/config", configHandler)
+	router.POST("/api/control", controlHandler)
 
 	router.StaticFS("/css", http.Dir("frontend/dist/css"))
 	router.StaticFS("/fonts", http.Dir("frontend/dist/fonts"))
@@ -635,4 +637,67 @@ func loginHandler(c *gin.Context) {
 	resp.Token = "xdfasZsdfa2DsJsfa2"
 
 	c.JSON(http.StatusOK, resp)
+}
+
+func configHandler(c *gin.Context) {
+	type DataReq struct {
+		User     string `json:"user" binding:"required"`
+		Password string `json:"password" binding:"required"`
+	}
+	var json DataReq
+	if err := c.ShouldBindJSON(&json); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	//查找数据库
+	//该用户存在
+	//后面集成jwt
+	type DataResp struct {
+		Token string `json:"token"`
+	}
+	var resp DataResp
+	resp.Token = "xdfasZsdfa2DsJsfa2"
+
+	c.JSON(http.StatusOK, resp)
+}
+
+func controlHandler(c *gin.Context) {
+	type DataReq struct {
+		Imei  string `json:"imei" binding:"required"`
+		Cmd   string `json:"cmd" binding:"required"`
+		Param string `json:"param"`
+	}
+	var json DataReq
+	if err := c.ShouldBindJSON(&json); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	termip := ""
+	for key, val := range connManger {
+		tempimei := val.GetImei()
+		if tempimei == json.Imei {
+			termip = key
+		}
+	}
+
+	fmt.Println("ip:", termip)
+
+	if termip != "" {
+
+		switch json.Cmd {
+		case "reset":
+			buf := connManger[termip].makeApduCtrl(4, "")
+			retbuf := connManger[termip].MakeFrame(CtrlReq, 1, connManger[termip].GetPhone(), 1, buf)
+			connManger[termip].Conn.Write(retbuf)
+		case "factory":
+			buf := connManger[termip].makeApduCtrl(5, "")
+			retbuf := connManger[termip].MakeFrame(CtrlReq, 1, connManger[termip].GetPhone(), 1, buf)
+			connManger[termip].Conn.Write(retbuf)
+		}
+
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": 0})
 }

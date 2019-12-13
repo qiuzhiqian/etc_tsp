@@ -21,8 +21,8 @@
         :path="polylinePath"
         stroke-color="blue"
         :stroke-opacity="0.5"
-        :stroke-weight="2"
-        :editing="true"
+        :stroke-weight="4"
+        :editing="false"
         @lineupdate="updatePolylinePath"
       ></bm-polyline>
     </baidu-map>

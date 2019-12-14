@@ -73,6 +73,7 @@ export default {
             })
             .then(response => {
               window.console.log(response.data);
+              window.sessionStorage["token"]=response.data.token;
               this.$router.push("/mainpage/devices");
             })
             .catch(error => {

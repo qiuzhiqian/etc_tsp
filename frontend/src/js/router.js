@@ -28,6 +28,8 @@ const routes = [
 
 //实例化VueRouter并将routes添加进去
 const router = new VueRouter({
+    //HTML5 History 模式
+    mode: 'history',
     //ES6简写，等于routes：routes
     routes
 });

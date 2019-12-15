@@ -389,13 +389,19 @@ func httpServer() {
 	router.StaticFile("/favicon.ico", "./frontend/dist/favicon.ico")
 	//router.LoadHTMLGlob("templates/*")
 	router.LoadHTMLFiles("frontend/dist/index.html")
-	router.GET("/", func(c *gin.Context) {
-		c.HTML(http.StatusOK, "index.html", gin.H{
-			"title": "Main website",
-		})
-	})
+	router.GET("/", mainPage)
+
+	router.NoRoute(mainPage)
 
 	router.Run(":8080")
+}
+
+//主页面
+func mainPage(c *gin.Context) {
+	fmt.Println("no route page")
+	c.HTML(http.StatusOK, "index.html", gin.H{
+		"title": "Main website",
+	})
 }
 
 //获取在线设备

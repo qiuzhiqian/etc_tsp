@@ -4,6 +4,10 @@
 登录界面:  
 ![login](https://raw.githubusercontent.com/qiuzhiqian/etc_tsp/master/doc/img/login_1.png)
 
+登录默认账号：  
+用户名:admin  
+密码:admin123456
+
 主页面包括：设备列表，数据列表以及地图导航
 
 设备列表:  
@@ -45,12 +49,12 @@ $go build
 
 ```
 /
-默认页，被重定向到/#/login
+默认页，被重定向到/login
 
-/#/login
+/login
 登录页面路由
 
-/#/mainpage
+/mainpage
 主页面路由
 ```
 

@@ -65,18 +65,19 @@ export default {
     handleSubmit(name) {
       this.$refs[name].validate(valid => {
         if (valid) {
-          this.$Message.success("Success!");
           this.axios
             .post("/api/login", {
               user: this.formInline.user,
               password: this.formInline.password
             })
             .then(response => {
+              this.$Message.success("Success!");
               window.console.log(response.data);
               window.sessionStorage["token"]=response.data.token;
               this.$router.push("/mainpage/devices");
             })
             .catch(error => {
+              this.$Message.error("usrname or password is error!");
               window.console.log(error);
             });
         } else {

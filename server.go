@@ -19,6 +19,8 @@ import (
 
 	"net/http"
 
+	"crypto/md5"
+
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -406,7 +408,13 @@ func mainPage(c *gin.Context) {
 
 //获取在线设备
 func listHandler(c *gin.Context) {
-	cliams, err := ParseToken(c.GetHeader("Authorization"), jwtSecKey)
+	tokenstr := c.GetHeader("Authorization")
+	if tokenstr == "" {
+		//说明没有token
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "No token"})
+		return
+	}
+	cliams, err := ParseToken(tokenstr, jwtSecKey)
 	if err != nil {
 		//返回401
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
@@ -462,12 +470,19 @@ func listHandler(c *gin.Context) {
 
 //获取数据
 func dataHandler(c *gin.Context) {
-	_, err := ParseToken(c.GetHeader("Authorization"), jwtSecKey)
+	tokenstr := c.GetHeader("Authorization")
+	if tokenstr == "" {
+		//说明没有token
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "No token"})
+		return
+	}
+	cliams, err := ParseToken(tokenstr, jwtSecKey)
 	if err != nil {
 		//返回401
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}
+	fmt.Println("cliams:", cliams)
 
 	type DataReq struct {
 		Imei  string `json:"imei" binding:"required"`
@@ -553,12 +568,19 @@ func dataHandler(c *gin.Context) {
 
 //获取数据
 func nowGpsHandler(c *gin.Context) {
-	_, err := ParseToken(c.GetHeader("Authorization"), jwtSecKey)
+	tokenstr := c.GetHeader("Authorization")
+	if tokenstr == "" {
+		//说明没有token
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "No token"})
+		return
+	}
+	cliams, err := ParseToken(tokenstr, jwtSecKey)
 	if err != nil {
 		//返回401
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}
+	fmt.Println("cliams:", cliams)
 
 	type DataReq struct {
 		Imei string `json:"imei" binding:"required"`
@@ -605,12 +627,19 @@ func nowGpsHandler(c *gin.Context) {
 }
 
 func gpsMapHandler(c *gin.Context) {
-	_, err := ParseToken(c.GetHeader("Authorization"), jwtSecKey)
+	tokenstr := c.GetHeader("Authorization")
+	if tokenstr == "" {
+		//说明没有token
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "No token"})
+		return
+	}
+	cliams, err := ParseToken(tokenstr, jwtSecKey)
 	if err != nil {
 		//返回401
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}
+	fmt.Println("cliams:", cliams)
 
 	type DataReq struct {
 		Imei  string `json:"imei" binding:"required"`
@@ -671,6 +700,10 @@ func loginHandler(c *gin.Context) {
 
 	//查找数据库
 	//该用户存在
+	if json.User != "admin" && md5.Sum([]byte(json.Password)) != md5.Sum([]byte("admin123456")) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "usrname or password is error."})
+		return
+	}
 	//后面集成jwt
 	type DataResp struct {
 		Token string `json:"token"`

@@ -19,9 +19,20 @@ import (
 
 	"net/http"
 
+	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )
+
+var jwtSecKey []byte = []byte("asdsaf452g45aert")
+
+type jwtCustomClaims struct {
+	jwt.StandardClaims
+
+	// 追加自己需要的信息
+	Uid   uint `json:"uid"`
+	Admin bool `json:"admin"`
+}
 
 type Users struct {
 	Id   int    `xorm:"pk autoincr notnull id"`
@@ -389,6 +400,13 @@ func httpServer() {
 
 //获取在线设备
 func listHandler(c *gin.Context) {
+	cliams, err := ParseToken(c.GetHeader("Authorization"), jwtSecKey)
+	if err != nil {
+		//返回401
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		return
+	}
+	fmt.Println("cliams:", cliams)
 	type DevPageItem struct {
 		Ip    string `json:"ip"`
 		Imei  string `json:"imei"`
@@ -438,7 +456,13 @@ func listHandler(c *gin.Context) {
 
 //获取数据
 func dataHandler(c *gin.Context) {
-	fmt.Println("data post")
+	_, err := ParseToken(c.GetHeader("Authorization"), jwtSecKey)
+	if err != nil {
+		//返回401
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		return
+	}
+
 	type DataReq struct {
 		Imei  string `json:"imei" binding:"required"`
 		Start int64  `json:"starttime" binding:"required"`
@@ -523,7 +547,13 @@ func dataHandler(c *gin.Context) {
 
 //获取数据
 func nowGpsHandler(c *gin.Context) {
-	fmt.Println("nowGps post")
+	_, err := ParseToken(c.GetHeader("Authorization"), jwtSecKey)
+	if err != nil {
+		//返回401
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		return
+	}
+
 	type DataReq struct {
 		Imei string `json:"imei" binding:"required"`
 	}
@@ -569,7 +599,13 @@ func nowGpsHandler(c *gin.Context) {
 }
 
 func gpsMapHandler(c *gin.Context) {
-	fmt.Println("data post")
+	_, err := ParseToken(c.GetHeader("Authorization"), jwtSecKey)
+	if err != nil {
+		//返回401
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		return
+	}
+
 	type DataReq struct {
 		Imei  string `json:"imei" binding:"required"`
 		Start int64  `json:"starttime" binding:"required"`
@@ -594,7 +630,7 @@ func gpsMapHandler(c *gin.Context) {
 
 	//获取总数
 	gpsmap := make([]GPSData, 0)
-	err := engine.Where("imei = ? AND stamp > ? AND stamp < ? AND gpsstate = ?", json.Imei, time.Unix(json.Start, 0), time.Unix(json.End, 0), 1).Asc("stamp").Find(&gpsmap)
+	err = engine.Where("imei = ? AND stamp > ? AND stamp < ? AND gpsstate = ?", json.Imei, time.Unix(json.Start, 0), time.Unix(json.End, 0), 1).Asc("stamp").Find(&gpsmap)
 	if err != nil {
 		fmt.Println("where err:", err)
 	}
@@ -634,7 +670,14 @@ func loginHandler(c *gin.Context) {
 		Token string `json:"token"`
 	}
 	var resp DataResp
-	resp.Token = "xdfasZsdfa2DsJsfa2"
+	var tokenstr string
+	var err error
+	tokenstr, err = CreateToken(jwtSecKey, json.User, 3321231, true)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	resp.Token = tokenstr
 
 	c.JSON(http.StatusOK, resp)
 }
@@ -663,13 +706,20 @@ func configHandler(c *gin.Context) {
 }
 
 func controlHandler(c *gin.Context) {
+	_, err := ParseToken(c.GetHeader("Authorization"), jwtSecKey)
+	if err != nil {
+		//返回401
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		return
+	}
+
 	type DataReq struct {
 		Imei  string `json:"imei" binding:"required"`
 		Cmd   string `json:"cmd" binding:"required"`
 		Param string `json:"param"`
 	}
 	var json DataReq
-	if err := c.ShouldBindJSON(&json); err != nil {
+	if err = c.ShouldBindJSON(&json); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -700,4 +750,27 @@ func controlHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"status": 0})
+}
+
+func CreateToken(SecretKey []byte, issuer string, Uid uint, isAdmin bool) (tokenString string, err error) {
+	claims := &jwtCustomClaims{
+		jwt.StandardClaims{
+			ExpiresAt: int64(time.Now().Add(time.Hour * 72).Unix()),
+			Issuer:    issuer,
+		},
+		Uid,
+		isAdmin,
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err = token.SignedString(SecretKey)
+	return
+}
+
+func ParseToken(tokenSrt string, SecretKey []byte) (claims jwt.Claims, err error) {
+	var token *jwt.Token
+	token, err = jwt.Parse(tokenSrt, func(*jwt.Token) (interface{}, error) {
+		return SecretKey, nil
+	})
+	claims = token.Claims
+	return
 }

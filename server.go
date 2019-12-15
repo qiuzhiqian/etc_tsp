@@ -700,7 +700,7 @@ func loginHandler(c *gin.Context) {
 
 	//查找数据库
 	//该用户存在
-	if json.User != "admin" && md5.Sum([]byte(json.Password)) != md5.Sum([]byte("admin123456")) {
+	if json.User != "admin" || md5.Sum([]byte(json.Password)) != md5.Sum([]byte("admin123456")) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "usrname or password is error."})
 		return
 	}

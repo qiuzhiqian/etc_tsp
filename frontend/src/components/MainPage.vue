@@ -15,6 +15,10 @@
             <Icon type="ios-navigate" />
             <span>Map</span>
           </MenuItem>
+          <MenuItem name="1-4" to="/mainpage/userManager">
+            <Icon type="ios-navigate" />
+            <span>userManager</span>
+          </MenuItem>
         </Menu>
       </Sider>
       <Layout>
@@ -101,7 +105,7 @@ export default {
 .menu-item span {
   display: inline-block;
   overflow: hidden;
-  width: 69px;
+  width: 100px;
   text-overflow: ellipsis;
   white-space: nowrap;
   vertical-align: bottom;

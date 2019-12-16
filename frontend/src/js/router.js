@@ -10,6 +10,8 @@ import mainPage from '../components/MainPage.vue';
 import MapWidget from "../components/MapWidget.vue";
 import Devices from "../components/Devices.vue";
 import GpsTable from "../components/GpsTable.vue";
+import UserManager from "../components/UserManager.vue";
+import UserAdd from "../components/UserAdd.vue"
 
 //定义routes路由的集合，数组类型
 const routes = [
@@ -21,7 +23,9 @@ const routes = [
         children: [
             { path: 'devices', name: 'devices', component: Devices },
             { path: 'gpstable', name: 'gpstable', component: GpsTable },
-            { path: 'mapwidget', name: 'mapwidget', component: MapWidget }
+            { path: 'mapwidget', name: 'mapwidget', component: MapWidget },
+            { path: 'userManager', name: 'userManager', component: UserManager },
+            { path: 'userAdd', name: 'userAdd', component: UserAdd }
         ]
     }
 ]

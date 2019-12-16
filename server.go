@@ -37,9 +37,10 @@ type jwtCustomClaims struct {
 }
 
 type Users struct {
-	Id   int    `xorm:"pk autoincr notnull id"`
-	Name string `xorm:"unique name"`
-	Age  int    `xorm:"age"`
+	Id       int    `xorm:"pk autoincr notnull id"`
+	Name     string `xorm:"name"`
+	Password string `xorm:"password"`
+	IsAdmin  bool   `xorm:"admin"`
 }
 
 type LogFrame struct {
@@ -69,6 +70,20 @@ type GPSData struct {
 
 func (d GPSData) TableName() string {
 	return "gps_data"
+}
+
+type DevInfo struct {
+	Authkey    string `xorm:"auth_key"`
+	Imei       string `xorm:"imei"`
+	Vin        string `xorm:"vin"`
+	PhoneNum   string `xorm:"pk notnull phone_num"`
+	ProvId     uint16 `xorm:"prov_id"`
+	CityId     uint16 `xorm:"city_id"`
+	Manuf      string `xorm:"manuf"`
+	TermType   string `xorm:"term_type"`
+	TermId     string `xorm:"term_id"`
+	PlateColor int    `xorm:"plate_color"`
+	PlateNum   string `xorm:"plate_num"`
 }
 
 //var connList []net.Conn
@@ -125,7 +140,6 @@ func recvConnMsg(conn net.Conn) {
 		fmt.Println("<--- ", outlog)
 
 		logframe := new(LogFrame)
-		engine.Sync2(logframe)
 		logframe.Stamp = time.Now()
 		logframe.Dir = 0
 		logframe.Frame = outlog
@@ -146,7 +160,6 @@ func recvConnMsg(conn net.Conn) {
 				fmt.Println("---> ", outlog)
 
 				logframe := new(LogFrame)
-				engine.Sync2(logframe)
 				logframe.Stamp = time.Now()
 				logframe.Dir = 1
 				logframe.Frame = outlog
@@ -325,15 +338,9 @@ func main() {
 	flag.Parse()
 
 	var err error
-	engine, err = xorm.NewEngine("postgres", "postgres://pqgotest:pqgotest@localhost/pqgodb?sslmode=require")
+	engine, err = xormInit("postgres", "postgres://pqgotest:pqgotest@localhost/pqgodb?sslmode=require")
 	if err != nil {
-		fmt.Println("new engine ", err)
-	}
-
-	users := new(Users)
-	err = engine.Sync(users)
-	if err != nil {
-		fmt.Println("sync users ", err)
+		fmt.Println("xorm init error: ", err)
 	}
 
 	address := ":" + port
@@ -362,6 +369,39 @@ func main() {
 
 }
 
+func xormInit(driverName string, dataSourceName string) (*xorm.Engine, error) {
+	var err error
+	engine, err = xorm.NewEngine(driverName, dataSourceName)
+	if err != nil {
+		return engine, err
+	}
+
+	users := new(Users)
+	err = engine.Sync2(users)
+	if err != nil {
+		return engine, err
+	}
+
+	logframe := new(LogFrame)
+	err = engine.Sync2(logframe)
+	if err != nil {
+		return engine, err
+	}
+
+	gpsdata := new(GPSData)
+	err = engine.Sync2(gpsdata)
+	if err != nil {
+		return engine, err
+	}
+
+	devinfo := new(DevInfo)
+	err = engine.Sync2(devinfo)
+	if err != nil {
+		return engine, err
+	}
+	return engine, err
+}
+
 func httpServer() {
 	router := gin.Default()
 	router.Use(cors.New(cors.Config{
@@ -383,6 +423,8 @@ func httpServer() {
 	router.POST("/api/login", loginHandler)
 	router.POST("/api/config", configHandler)
 	router.POST("/api/control", controlHandler)
+	router.POST("/api/userlist", userListHandler)
+	router.POST("/api/useradd", userAddHandler)
 
 	router.StaticFS("/css", http.Dir("frontend/dist/css"))
 	router.StaticFS("/fonts", http.Dir("frontend/dist/fonts"))
@@ -745,6 +787,99 @@ func configHandler(c *gin.Context) {
 }
 
 func controlHandler(c *gin.Context) {
+	_, err := ParseToken(c.GetHeader("Authorization"), jwtSecKey)
+	if err != nil {
+		//返回401
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		return
+	}
+
+	type DataReq struct {
+		Imei  string `json:"imei" binding:"required"`
+		Cmd   string `json:"cmd" binding:"required"`
+		Param string `json:"param"`
+	}
+	var json DataReq
+	if err = c.ShouldBindJSON(&json); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	termip := ""
+	for key, val := range connManger {
+		tempimei := val.GetImei()
+		if tempimei == json.Imei {
+			termip = key
+		}
+	}
+
+	fmt.Println("ip:", termip)
+
+	if termip != "" {
+
+		switch json.Cmd {
+		case "reset":
+			buf := connManger[termip].makeApduCtrl(4, "")
+			retbuf := connManger[termip].MakeFrame(CtrlReq, 1, connManger[termip].GetPhone(), 1, buf)
+			connManger[termip].Conn.Write(retbuf)
+		case "factory":
+			buf := connManger[termip].makeApduCtrl(5, "")
+			retbuf := connManger[termip].MakeFrame(CtrlReq, 1, connManger[termip].GetPhone(), 1, buf)
+			connManger[termip].Conn.Write(retbuf)
+		}
+
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": 0})
+}
+
+func userListHandler(c *gin.Context) {
+	_, err := ParseToken(c.GetHeader("Authorization"), jwtSecKey)
+	if err != nil {
+		//返回401
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		return
+	}
+
+	type DataReq struct {
+		Imei  string `json:"imei" binding:"required"`
+		Cmd   string `json:"cmd" binding:"required"`
+		Param string `json:"param"`
+	}
+	var json DataReq
+	if err = c.ShouldBindJSON(&json); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	termip := ""
+	for key, val := range connManger {
+		tempimei := val.GetImei()
+		if tempimei == json.Imei {
+			termip = key
+		}
+	}
+
+	fmt.Println("ip:", termip)
+
+	if termip != "" {
+		switch json.Cmd {
+		case "reset":
+			buf := connManger[termip].makeApduCtrl(4, "")
+			retbuf := connManger[termip].MakeFrame(CtrlReq, 1, connManger[termip].GetPhone(), 1, buf)
+			connManger[termip].Conn.Write(retbuf)
+		case "factory":
+			buf := connManger[termip].makeApduCtrl(5, "")
+			retbuf := connManger[termip].MakeFrame(CtrlReq, 1, connManger[termip].GetPhone(), 1, buf)
+			connManger[termip].Conn.Write(retbuf)
+		}
+
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": 0})
+}
+
+func userAddHandler(c *gin.Context) {
 	_, err := ParseToken(c.GetHeader("Authorization"), jwtSecKey)
 	if err != nil {
 		//返回401

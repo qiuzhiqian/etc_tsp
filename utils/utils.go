@@ -75,19 +75,19 @@ func HexBuffToString(hex []byte) string {
 		ret = append(ret, hasc, lasc)
 	}
 
-	var index int = -1
-	for i, val := range ret {
-		if val != '0' {
-			index = i
-			break
-		}
-	}
+	//var index int = -1
+	//for i, val := range ret {
+	//	if val != '0' {
+	//		index = i
+	//		break
+	//	}
+	//}
 
-	if index < 0 {
-		return string("")
-	}
+	//if index < 0 {
+	//	return string("")
+	//}
 
-	return string(ret[index:])
+	return string(ret)
 }
 
 /*std::vector<uint8_t> CUtils::StringToHexBuff(const std::string& str){

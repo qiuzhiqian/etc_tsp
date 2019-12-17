@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 	"time"
 
 	"tsp/utils"
@@ -37,10 +38,11 @@ type jwtCustomClaims struct {
 }
 
 type Users struct {
-	Id       int    `xorm:"pk autoincr notnull id"`
-	Name     string `xorm:"name"`
-	Password string `xorm:"password"`
-	IsAdmin  bool   `xorm:"admin"`
+	Id       int       `xorm:"pk autoincr notnull id"`
+	Name     string    `xorm:"name"`
+	Password string    `xorm:"password"`
+	IsAdmin  bool      `xorm:"admin"`
+	Stamp    time.Time `xorm:"stamp"`
 }
 
 type LogFrame struct {
@@ -296,6 +298,10 @@ func main() {
 
 	logInit()
 
+	teststr := "00001234526"
+	teststr = strings.TrimLeft(teststr, "0")
+	log.Info("test:", teststr)
+
 	var err error
 	engine, err = xormInit("postgres", "postgres://pqgotest:pqgotest@localhost/pqgodb?sslmode=require")
 	if err != nil {
@@ -466,7 +472,7 @@ func listHandler(c *gin.Context) {
 			var item DevPageItem
 			item.Ip = val.Conn.RemoteAddr().String()
 			item.Imei = val.GetImei()
-			item.Phone = utils.HexBuffToString(val.GetPhone())
+			item.Phone = strings.TrimLeft(utils.HexBuffToString(val.GetPhone()), "0")
 			datalist = append(datalist, item)
 		}
 		index++
@@ -729,6 +735,20 @@ func loginHandler(c *gin.Context) {
 }
 
 func configHandler(c *gin.Context) {
+	tokenstr := c.GetHeader("Authorization")
+	if tokenstr == "" {
+		//说明没有token
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "No token"})
+		return
+	}
+	cliams, err := ParseToken(tokenstr, jwtSecKey)
+	if err != nil {
+		//返回401
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		return
+	}
+	log.Info("cliams:", cliams)
+
 	type DataReq struct {
 		User     string `json:"user" binding:"required"`
 		Password string `json:"password" binding:"required"`
@@ -752,12 +772,19 @@ func configHandler(c *gin.Context) {
 }
 
 func controlHandler(c *gin.Context) {
-	_, err := ParseToken(c.GetHeader("Authorization"), jwtSecKey)
+	tokenstr := c.GetHeader("Authorization")
+	if tokenstr == "" {
+		//说明没有token
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "No token"})
+		return
+	}
+	cliams, err := ParseToken(tokenstr, jwtSecKey)
 	if err != nil {
 		//返回401
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}
+	log.Info("cliams:", cliams)
 
 	type DataReq struct {
 		Imei  string `json:"imei" binding:"required"`
@@ -799,17 +826,22 @@ func controlHandler(c *gin.Context) {
 }
 
 func userListHandler(c *gin.Context) {
-	_, err := ParseToken(c.GetHeader("Authorization"), jwtSecKey)
+	tokenstr := c.GetHeader("Authorization")
+	if tokenstr == "" {
+		//说明没有token
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "No token"})
+		return
+	}
+	cliams, err := ParseToken(tokenstr, jwtSecKey)
 	if err != nil {
 		//返回401
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}
+	log.Info("cliams:", cliams)
 
 	type DataReq struct {
-		Imei  string `json:"imei" binding:"required"`
-		Cmd   string `json:"cmd" binding:"required"`
-		Param string `json:"param"`
+		Page int `json:"page" binding:"required"`
 	}
 	var json DataReq
 	if err = c.ShouldBindJSON(&json); err != nil {
@@ -817,45 +849,90 @@ func userListHandler(c *gin.Context) {
 		return
 	}
 
-	termip := ""
-	for key, val := range connManger {
-		tempimei := val.GetImei()
-		if tempimei == json.Imei {
-			termip = key
-		}
+	if json.Page == 0 {
+		json.Page = 1
 	}
 
-	log.Info("ip:", termip)
-
-	if termip != "" {
-		switch json.Cmd {
-		case "reset":
-			buf := connManger[termip].makeApduCtrl(4, "")
-			retbuf := connManger[termip].MakeFrame(CtrlReq, 1, connManger[termip].GetPhone(), 1, buf)
-			connManger[termip].Conn.Write(retbuf)
-		case "factory":
-			buf := connManger[termip].makeApduCtrl(5, "")
-			retbuf := connManger[termip].MakeFrame(CtrlReq, 1, connManger[termip].GetPhone(), 1, buf)
-			connManger[termip].Conn.Write(retbuf)
-		}
-
+	//查找数据库
+	type DataItem struct {
+		User       string `json:"user"`
+		Role       string `json:"role"`
+		CreateTime int64  `json:"createTime"`
 	}
 
-	c.JSON(http.StatusOK, gin.H{"status": 0})
+	type DataResp struct {
+		PageCnt   int        `json:"pagecnt"`
+		PageSize  int        `json:"pagesize"`
+		PageIndex int        `json:"pageindex"`
+		Data      []DataItem `json:"data"`
+	}
+
+	//获取总数
+	usersTemp := new(Users)
+	total, err := engine.Count(usersTemp)
+	if err != nil {
+		log.Info("where err:", err)
+	}
+	log.Info("select total:", total)
+
+	var dataresp DataResp
+	dataresp.PageSize = 10
+	dataresp.PageCnt = ((int)(total) + (dataresp.PageSize - 1)) / dataresp.PageSize
+	dataresp.PageIndex = json.Page
+
+	log.Info("page:", json.Page)
+
+	if dataresp.PageIndex > dataresp.PageCnt {
+		dataresp.PageIndex = dataresp.PageCnt
+	}
+
+	datas := make([]Users, 0)
+	startindex := (dataresp.PageIndex - 1) * dataresp.PageSize
+	log.Info("start:", startindex)
+	err = engine.Find(&datas)
+	if err != nil {
+		log.Info("where err:", err)
+	}
+
+	datalist := make([]DataItem, 0)
+	for _, val := range datas {
+		var rolestr string = ""
+		if val.IsAdmin {
+			rolestr = "Admin"
+		} else {
+			rolestr = "User"
+		}
+		var item DataItem
+		item.User = val.Name
+		item.Role = rolestr
+		item.CreateTime = val.Stamp.Unix()
+		log.WithFields(logrus.Fields{"item.Role": item.Role}).Info("userlist")
+		datalist = append(datalist, item)
+	}
+	dataresp.Data = datalist
+
+	c.JSON(http.StatusOK, dataresp)
 }
 
 func userAddHandler(c *gin.Context) {
-	_, err := ParseToken(c.GetHeader("Authorization"), jwtSecKey)
+	tokenstr := c.GetHeader("Authorization")
+	if tokenstr == "" {
+		//说明没有token
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "No token"})
+		return
+	}
+	cliams, err := ParseToken(tokenstr, jwtSecKey)
 	if err != nil {
 		//返回401
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}
+	log.Info("cliams:", cliams)
 
 	type DataReq struct {
-		Imei  string `json:"imei" binding:"required"`
-		Cmd   string `json:"cmd" binding:"required"`
-		Param string `json:"param"`
+		User     string `json:"user"`
+		Password string `json:"password"`
+		Role     bool   `json:"role"`
 	}
 	var json DataReq
 	if err = c.ShouldBindJSON(&json); err != nil {
@@ -863,30 +940,13 @@ func userAddHandler(c *gin.Context) {
 		return
 	}
 
-	termip := ""
-	for key, val := range connManger {
-		tempimei := val.GetImei()
-		if tempimei == json.Imei {
-			termip = key
-		}
+	md5Array := md5.Sum([]byte(json.Password))
+	var user Users = Users{
+		Name:     json.User,
+		Password: utils.HexBuffToString(md5Array[:]),
+		IsAdmin:  json.Role,
 	}
-
-	log.Info("ip:", termip)
-
-	if termip != "" {
-
-		switch json.Cmd {
-		case "reset":
-			buf := connManger[termip].makeApduCtrl(4, "")
-			retbuf := connManger[termip].MakeFrame(CtrlReq, 1, connManger[termip].GetPhone(), 1, buf)
-			connManger[termip].Conn.Write(retbuf)
-		case "factory":
-			buf := connManger[termip].makeApduCtrl(5, "")
-			retbuf := connManger[termip].MakeFrame(CtrlReq, 1, connManger[termip].GetPhone(), 1, buf)
-			connManger[termip].Conn.Write(retbuf)
-		}
-
-	}
+	engine.Insert(&user)
 
 	c.JSON(http.StatusOK, gin.H{"status": 0})
 }

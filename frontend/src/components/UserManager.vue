@@ -59,12 +59,18 @@ export default {
           page: index
         })
         .then(response => {
+          window.console.log(response.data.data);
           this.data1.splice(0, this.data1.length);
           for (var i = 0, len = response.data.data.length; i < len; i++) {
+            var tempdate = new Date(response.data.data[i].createTime * 1000);
+            var datestr =
+              tempdate.toLocaleDateString().replace(/\//g, "-") +
+              " " +
+              tempdate.toTimeString().substr(0, 8);
             var item = {
-              ip: response.data.data[i].ip,
-              imei: response.data.data[i].imei,
-              phoneNum: response.data.data[i].phone
+              user: response.data.data[i].user,
+              role: response.data.data[i].role,
+              createTime: datestr
             };
             this.data1.push(item);
           }

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/gob"
 	"net"
+	"strings"
 	"time"
 
 	"tsp/utils"
@@ -233,7 +234,7 @@ func (t *Terminal) apduHandle(cmdType uint16, apdu []byte) []byte {
 
 		devinfo := new(DevInfo)
 
-		devinfo.PhoneNum = utils.HexBuffToString(t.phoneNum)
+		devinfo.PhoneNum = strings.TrimLeft(utils.HexBuffToString(t.phoneNum), "0")
 		log.Info("phnoe:", devinfo.PhoneNum)
 
 		//tempinfo := &DevInfo{PhoneNum: devinfo.PhoneNum}

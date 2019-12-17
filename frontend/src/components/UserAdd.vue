@@ -21,7 +21,7 @@
         <Input
           prefix="ios-lock-outline"
           type="password"
-          v-model="formInline.password"
+          v-model="formInline.repassword"
           placeholder="Password"
         />
       </FormItem>
@@ -88,11 +88,16 @@ export default {
     handleSubmit(name) {
       this.$refs[name].validate(valid => {
         if (valid) {
+          if (this.formInline.password != this.formInline.repassword) {
+            this.$Message.error("password is not match!");
+            return;
+          }
+          //window.console.log(name);
           this.axios
             .post("/api/useradd", {
               user: this.formInline.user,
               password: this.formInline.password,
-              isAdmin: this.formInline.isAdmin
+              admin: this.formInline.isAdmin
             })
             .then(function() {
               this.$Message.success("set success!");

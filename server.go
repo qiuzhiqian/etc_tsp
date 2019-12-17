@@ -932,7 +932,7 @@ func userAddHandler(c *gin.Context) {
 	type DataReq struct {
 		User     string `json:"user"`
 		Password string `json:"password"`
-		Role     bool   `json:"role"`
+		IsAdmin  bool   `json:"admin"`
 	}
 	var json DataReq
 	if err = c.ShouldBindJSON(&json); err != nil {
@@ -944,7 +944,19 @@ func userAddHandler(c *gin.Context) {
 	var user Users = Users{
 		Name:     json.User,
 		Password: utils.HexBuffToString(md5Array[:]),
-		IsAdmin:  json.Role,
+		IsAdmin:  json.IsAdmin,
+		Stamp:    time.Now(),
+	}
+	var isexist bool
+	isexist, err = engine.Exist(&Users{
+		Name: json.User,
+	})
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	}
+
+	if isexist {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "user is exist"})
 	}
 	engine.Insert(&user)
 

@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"encoding/gob"
-	"fmt"
 	"net"
 	"time"
 
@@ -45,10 +44,6 @@ const (
 	CtrlReq     uint16 = 0x8105
 )
 
-func init() {
-	fmt.Println("hello module init function")
-}
-
 func deepCopy(dst, src interface{}) error {
 	var buf bytes.Buffer
 	if err := gob.NewEncoder(&buf).Encode(src); err != nil {
@@ -62,7 +57,6 @@ func (t *Terminal) MakeFrame(cmd uint16, ver uint8, phone []byte, seq uint16, ap
 	tempbytes := utils.Word2Bytes(cmd)
 	data = append(data, tempbytes...)
 	datalen := uint16(len(apdu)) & 0x03FF
-	//fmt.Println("datalen:", datalen, " len:", uint16(len(apdu)))
 	datalen = datalen | 0x4000
 
 	tempbytes = utils.Word2Bytes(datalen)
@@ -85,10 +79,10 @@ func (t *Terminal) MakeFrame(cmd uint16, ver uint8, phone []byte, seq uint16, ap
 
 	for _, item := range data {
 		if item == 0x7d {
-			fmt.Println("has 0x7d")
+			log.Info("has 0x7d")
 			tmpdata = append(tmpdata, 0x7d, 0x01)
 		} else if item == 0x7e {
-			fmt.Println("has 0x7e")
+			log.Info("has 0x7e")
 			tmpdata = append(tmpdata, 0x7d, 0x02)
 		} else {
 			tmpdata = append(tmpdata, item)
@@ -104,7 +98,7 @@ func (t *Terminal) MakeFrameMult(cmd uint16, ver uint8, phone []byte, seq, sum, 
 	tempbytes := utils.Word2Bytes(cmd)
 	data = append(data, tempbytes...)
 	datalen := uint16(len(apdu)) & 0x03FF
-	fmt.Println("datalen:", datalen, " len:", uint16(len(apdu)))
+	log.Info("datalen:", datalen, " len:", uint16(len(apdu)))
 	datalen = datalen | 0x4000
 
 	datalen = datalen | 0x2000
@@ -134,10 +128,10 @@ func (t *Terminal) MakeFrameMult(cmd uint16, ver uint8, phone []byte, seq, sum, 
 	var tmpdata []byte = []byte{0x7e}
 	for _, item := range data {
 		if item == 0x7d {
-			fmt.Println("has 0x7d")
+			log.Info("has 0x7d")
 			tmpdata = append(tmpdata, 0x7d, 0x01)
 		} else if item == 0x7e {
-			fmt.Println("has 0x7e")
+			log.Info("has 0x7e")
 			tmpdata = append(tmpdata, 0x7d, 0x02)
 		} else {
 			tmpdata = append(tmpdata, item)
@@ -172,7 +166,7 @@ func (t *Terminal) makeApduCommonAck(cmdid uint16, res byte) []byte {
 
 	data = append(data, res)
 
-	fmt.Println("apdu:", data)
+	log.Info("apdu:", data)
 	return data
 }
 
@@ -182,21 +176,18 @@ func (t *Terminal) makeApduCtrl(cmdid byte, param string) []byte {
 	data = append(data, cmdid)
 	data = append(data, param...)
 
-	fmt.Println("apdu:", data)
+	log.Info("apdu:", data)
 	return data
 }
 
 func (t *Terminal) DataFilter(data []byte) int {
 	//--------------------------------------------------
-	//int iRet = 0;
-	// static int curLen=0;
-	fmt.Printf("len = %d,data[0]=0x%X.\n", len(data), data[0])
 	if data[0] == protoHeader {
-		fmt.Println("find start.")
+		log.Info("find start.")
 		var endindex int = -1
 		for i := 1; i < len(data); i++ {
 			if data[i] == protoHeader {
-				fmt.Println("find end.")
+				log.Info("find end.")
 				endindex = i
 				break
 			}
@@ -223,7 +214,7 @@ func (t *Terminal) FrameHandle(data []byte) []byte {
 		t.phoneNum[index] = item
 	}
 	t.seqNum = utils.Bytes2Word(data[16:18])
-	fmt.Println("cmdid:", cmdid)
+	log.Info("cmdid:", cmdid)
 	len := len(data)
 	return t.apduHandle(cmdid, data[18:len-2])
 }
@@ -231,24 +222,24 @@ func (t *Terminal) FrameHandle(data []byte) []byte {
 func (t *Terminal) apduHandle(cmdType uint16, apdu []byte) []byte {
 	switch cmdType {
 	case termAck:
-		fmt.Println("rcv termAck.")
+		log.Info("rcv termAck.")
 		reqId := utils.Bytes2Word(apdu[2:4])
-		fmt.Println("reqId:", reqId)
+		log.Info("reqId:", reqId)
 		if reqId == UpdateReq {
 			ch <- 1
 		}
 	case register:
-		fmt.Println("rcv register.")
+		log.Info("rcv register.")
 
 		devinfo := new(DevInfo)
 
 		devinfo.PhoneNum = utils.HexBuffToString(t.phoneNum)
-		fmt.Println("phnoe:", devinfo.PhoneNum)
+		log.Info("phnoe:", devinfo.PhoneNum)
 
 		//tempinfo := &DevInfo{PhoneNum: devinfo.PhoneNum}
 		is, _ := t.Engine.Get(devinfo)
 		if !is {
-			fmt.Println("no this phone")
+			log.Info("no this phone")
 			return []byte{}
 		}
 
@@ -256,7 +247,7 @@ func (t *Terminal) apduHandle(cmdType uint16, apdu []byte) []byte {
 		sendBuf := t.MakeFrame(registerAck, 1, t.phoneNum, t.seqNum, apduack)
 		return sendBuf
 	case login:
-		fmt.Println("rcv login.")
+		log.Info("rcv login.")
 		authkeylen := apdu[0]
 		tempSlice := make([]byte, authkeylen)
 		copy(tempSlice, apdu[1:1+authkeylen])
@@ -265,7 +256,7 @@ func (t *Terminal) apduHandle(cmdType uint16, apdu []byte) []byte {
 		tempSlice = make([]byte, 15)
 		copy(tempSlice, apdu[1+authkeylen:1+authkeylen+15])
 		t.imei = string(tempSlice)
-		fmt.Println("imei:", t.imei)
+		log.Info("imei:", t.imei)
 
 		verArray := apdu[1+authkeylen+15 : 1+authkeylen+15+20]
 
@@ -276,7 +267,7 @@ func (t *Terminal) apduHandle(cmdType uint16, apdu []byte) []byte {
 			}
 			emptyLen++
 		}
-		fmt.Println("emptylen:", emptyLen)
+		log.Info("emptylen:", emptyLen)
 		t.tboxver = string(verArray[:len(verArray)-emptyLen])
 		apduack := t.makeApduCommonAck(cmdType, 0)
 		sendBuf := t.MakeFrame(platAck, 1, t.phoneNum, t.seqNum, apduack)
@@ -284,13 +275,13 @@ func (t *Terminal) apduHandle(cmdType uint16, apdu []byte) []byte {
 		return sendBuf
 		//return []byte{}
 	case heartbeat:
-		fmt.Println("rcv heartbeat.")
+		log.Info("rcv heartbeat.")
 		apduack := t.makeApduCommonAck(cmdType, 0)
 		sendBuf := t.MakeFrame(platAck, 1, t.phoneNum, t.seqNum, apduack)
 
 		return sendBuf
 	case gpsinfo:
-		fmt.Println("rcv gpsinfo.")
+		log.Info("rcv gpsinfo.")
 
 		var index int = 0
 		gpsdata := new(GPSData)
@@ -326,7 +317,7 @@ func (t *Terminal) apduHandle(cmdType uint16, apdu []byte) []byte {
 
 		_, err := engine.Insert(gpsdata)
 		if err != nil {
-			fmt.Println("insert gps err:", err)
+			log.Info("insert gps err:", err)
 		}
 
 		apduack := t.makeApduCommonAck(cmdType, 0)
@@ -351,7 +342,7 @@ func (t *Terminal) checkSum(data []byte) byte {
 }
 
 func (t *Terminal) GetImei() string {
-	fmt.Println("get imei:", t.imei)
+	log.Info("get imei:", t.imei)
 	return t.imei
 }
 
@@ -360,7 +351,7 @@ func (t *Terminal) GetIccid() string {
 }
 
 func (t *Terminal) GetPhone() []byte {
-	//fmt.Println("ret phone:", t.phoneNum)
+	//log.Info("ret phone:", t.phoneNum)
 	//return []byte{0x00, 0x00, 0x00, 0x00, 0x01, 0x72, 0x55, 0x11, 0x11, 0x11}
 	return t.phoneNum
 }

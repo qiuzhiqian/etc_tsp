@@ -10,9 +10,7 @@ import (
 	"tsp/utils"
 
 	"bufio"
-	"regexp"
 	"strconv"
-	"strings"
 
 	"github.com/go-xorm/xorm"
 	_ "github.com/lib/pq"
@@ -22,11 +20,13 @@ import (
 	"crypto/md5"
 
 	"github.com/dgrijalva/jwt-go"
-	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/sirupsen/logrus"
 )
 
 var jwtSecKey []byte = []byte("asdsaf452g45aert")
+
+var log = logrus.New()
 
 type jwtCustomClaims struct {
 	jwt.StandardClaims
@@ -98,7 +98,7 @@ var ch chan int
 
 func checkError(err error) {
 	if err != nil {
-		fmt.Printf("Error: %s\n", err.Error())
+		log.WithFields(logrus.Fields{"Error:": err.Error()}).Error("check")
 		os.Exit(1)
 	}
 }
@@ -106,8 +106,7 @@ func checkError(err error) {
 func recvConnMsg(conn net.Conn) {
 	buf := make([]byte, 0)
 	addr := conn.RemoteAddr()
-	fmt.Println(addr.Network())
-	fmt.Println(addr.String())
+	log.WithFields(logrus.Fields{"network": addr.Network(), "ip": addr.String()}).Info("recv")
 
 	var term *Terminal = &Terminal{
 		Conn:   conn,
@@ -127,17 +126,16 @@ func recvConnMsg(conn net.Conn) {
 		n, err := conn.Read(tempbuf)
 
 		if err != nil {
-			fmt.Println(addr.Network() + ":" + addr.String() + " is closed.")
+			log.WithFields(logrus.Fields{"network": addr.Network(), "ip": addr.String()}).Info("closed")
 			return
 		}
 
-		fmt.Printf("rcv frm[%d].\n", n)
 		buf = append(buf, tempbuf[:n]...)
 		var outlog string
 		for _, val := range buf {
 			outlog += fmt.Sprintf("%02X", val)
 		}
-		fmt.Println("<--- ", outlog)
+		log.WithFields(logrus.Fields{"data": outlog}).Info("<--- ")
 
 		logframe := new(LogFrame)
 		logframe.Stamp = time.Now()
@@ -145,7 +143,7 @@ func recvConnMsg(conn net.Conn) {
 		logframe.Frame = outlog
 		_, err = engine.Insert(logframe)
 		if err != nil {
-			fmt.Println(err)
+			log.WithFields(logrus.Fields{"error": err.Error()}).Info("insert")
 		}
 		frmlen := term.DataFilter(buf)
 		if frmlen == -2 {
@@ -157,7 +155,7 @@ func recvConnMsg(conn net.Conn) {
 				for _, val := range sendBuf {
 					outlog += fmt.Sprintf("%02X", val)
 				}
-				fmt.Println("---> ", outlog)
+				log.WithFields(logrus.Fields{"data": outlog}).Info("---> ")
 
 				logframe := new(LogFrame)
 				logframe.Stamp = time.Now()
@@ -165,7 +163,7 @@ func recvConnMsg(conn net.Conn) {
 				logframe.Frame = outlog
 				_, err = engine.Insert(logframe)
 				if err != nil {
-					fmt.Println(err)
+					log.WithFields(logrus.Fields{"error": err.Error()}).Info("insert")
 				}
 
 				conn.Write(sendBuf)
@@ -176,61 +174,20 @@ func recvConnMsg(conn net.Conn) {
 	}
 }
 
-func inputHandler() {
-	fmt.Printf("inputHandler.\n")
-
-	rTermCtrl, _ := regexp.Compile("^ctrl [0-9]{1,3}")
-	rList, _ := regexp.Compile("^ls")
-	rUpdate, _ := regexp.Compile("^update ")
-
-	for {
-		fmt.Printf("cmd> ")
-		var inputReader *bufio.Reader
-		inputReader = bufio.NewReader(os.Stdin)
-		str, err := inputReader.ReadString('\n')
-
-		templist := strings.SplitN(str, "\n", 2)
-		str = templist[0]
-
-		if err != nil {
-			fmt.Println("read error:", err)
-			continue
-		}
-
-		if rTermCtrl.MatchString(str) {
-
-		} else if rList.MatchString(str) {
-			for key, value := range connManger {
-				fmt.Println("ip:", key, " ,imei:", value.GetImei(), " iccid:", value.GetIccid())
-			}
-		} else if rUpdate.MatchString(str) {
-			parList := strings.SplitN(str, " ", 2)
-
-			for _, val := range parList {
-				fmt.Println(val)
-			}
-
-			if len(parList) == 2 {
-				updateHandler(parList[1])
-			}
-		}
-	}
-}
-
 func readFull(rd *bufio.Reader, buff []byte) (int, error) {
 	var pos int = 0
 	var err error
 	for {
 		var n int = 0
 		if n, err = rd.Read(buff[pos:]); err == nil {
-			fmt.Println("The number of bytes read:" + strconv.Itoa(n))
+			log.Info("The number of bytes read:" + strconv.Itoa(n))
 			pos += n
 			if pos >= len(buff) {
 				break
 			}
 
 		} else {
-			fmt.Println("read end")
+			log.Info("read end")
 			break
 		}
 	}
@@ -284,48 +241,48 @@ func updateHandler(name string) {
 				}
 
 				if n, err := readFull(reader, buf[templen:]); err == nil {
-					fmt.Println("The number of bytes read:" + strconv.Itoa(n))
+					log.Info("The number of bytes read:" + strconv.Itoa(n))
 					//这里的buf是一个[]byte，因此如果需要只输出内容，仍然需要将文件内容的换行符替换掉
-					fmt.Println("data[", curCnt, "/", sumcnt, "]:", buf)
+					log.Info("data[", curCnt, "/", sumcnt, "]:", buf)
 
-					fmt.Println("phone:", tempTerm.GetPhone())
+					log.Info("phone:", tempTerm.GetPhone())
 					retbuf := tempTerm.MakeFrameMult(UpdateReq, 1, tempTerm.GetPhone(), 1, sumcnt, curCnt, buf)
 					tempTerm.Conn.Write(retbuf)
 					var outlog string = ""
 					for _, val := range retbuf {
 						outlog += fmt.Sprintf("%02X", val)
 					}
-					fmt.Println("---> ", outlog)
+					log.Info("---> ", outlog)
 
 					curCnt++
 					time.Sleep(5000 * time.Millisecond)
 
 				} else {
-					fmt.Println("read end")
+					log.Info("read end")
 					break
 				}
 			} else {
 				buf = make([]byte, 1023)
 				if n, err := readFull(reader, buf); err == nil {
-					fmt.Println("The number of bytes read:" + strconv.Itoa(n))
+					log.Info("The number of bytes read:" + strconv.Itoa(n))
 					//这里的buf是一个[]byte，因此如果需要只输出内容，仍然需要将文件内容的换行符替换掉
-					fmt.Println("data[", curCnt, "/", sumcnt, "]:", buf)
+					log.Info("data[", curCnt, "/", sumcnt, "]:", buf)
 
-					fmt.Println("phone:", tempTerm.GetPhone())
+					log.Info("phone:", tempTerm.GetPhone())
 					retbuf := tempTerm.MakeFrameMult(UpdateReq, 1, tempTerm.GetPhone(), 1, sumcnt, curCnt, buf)
 					tempTerm.Conn.Write(retbuf)
 					var outlog string = ""
 					for _, val := range retbuf {
 						outlog += fmt.Sprintf("%02X", val)
 					}
-					fmt.Println("---> ", outlog)
+					log.Info("---> ", outlog)
 
 					curCnt++
 					//time.Sleep(5000 * time.Millisecond)
 					<-ch
 
 				} else {
-					fmt.Println("read end")
+					log.Info("read end")
 					break
 				}
 			}
@@ -337,14 +294,16 @@ func main() {
 	flag.StringVar(&port, "port", "19902", "server port")
 	flag.Parse()
 
+	logInit()
+
 	var err error
 	engine, err = xormInit("postgres", "postgres://pqgotest:pqgotest@localhost/pqgodb?sslmode=require")
 	if err != nil {
-		fmt.Println("xorm init error: ", err)
+		log.Info("xorm init error: ", err)
 	}
 
 	address := ":" + port
-	fmt.Println("address port ", address)
+	log.Info("address port ", address)
 
 	listenSock, err := net.Listen("tcp", address)
 	checkError(err)
@@ -353,8 +312,6 @@ func main() {
 	connManger = make(map[string]*Terminal)
 
 	ch = make(chan int)
-
-	go inputHandler()
 
 	go httpServer()
 
@@ -402,19 +359,27 @@ func xormInit(driverName string, dataSourceName string) (*xorm.Engine, error) {
 	return engine, err
 }
 
+func logInit() {
+	// The API for setting attributes is a little different than the package level
+	// exported logger. See Godoc.
+	log.Out = os.Stdout
+
+	// You could set this to any `io.Writer` such as a file
+	// file, err := os.OpenFile("logrus.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	// if err == nil {
+	//  log.Out = file
+	// } else {
+	//  log.Info("Failed to log to file, using default stderr")
+	// }
+
+	log.Formatter = &logrus.TextFormatter{
+		DisableColors: true,
+		FullTimestamp: true,
+	}
+}
+
 func httpServer() {
 	router := gin.Default()
-	router.Use(cors.New(cors.Config{
-		AllowMethods:     []string{"GET", "PUT", "PATCH"},
-		AllowHeaders:     []string{"Origin"},
-		ExposeHeaders:    []string{"Content-Length"},
-		AllowCredentials: true,
-		AllowOriginFunc: func(origin string) bool {
-			fmt.Println("origin:", origin)
-			return true
-		},
-		MaxAge: 12 * time.Hour,
-	}))
 
 	router.POST("/api/list", listHandler)
 	router.POST("/api/data", dataHandler)
@@ -442,7 +407,7 @@ func httpServer() {
 
 //主页面
 func mainPage(c *gin.Context) {
-	fmt.Println("no route page")
+	log.Info("no route page")
 	c.HTML(http.StatusOK, "index.html", gin.H{
 		"title": "Main website",
 	})
@@ -462,7 +427,7 @@ func listHandler(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}
-	fmt.Println("cliams:", cliams)
+	log.Info("cliams:", cliams)
 	type DevPageItem struct {
 		Ip    string `json:"ip"`
 		Imei  string `json:"imei"`
@@ -476,14 +441,14 @@ func listHandler(c *gin.Context) {
 		Data      []DevPageItem `json:"data"`
 	}
 
-	fmt.Println("DevPage post")
+	log.Info("DevPage post")
 	var json DevPage
 	if err := c.ShouldBindJSON(&json); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	fmt.Println("page:", json)
+	log.Info("page:", json)
 
 	var devpagelist DevPageList
 	devpagelist.PageSize = 10
@@ -524,7 +489,7 @@ func dataHandler(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}
-	fmt.Println("cliams:", cliams)
+	log.Info("cliams:", cliams)
 
 	type DataReq struct {
 		Imei  string `json:"imei" binding:"required"`
@@ -566,16 +531,16 @@ func dataHandler(c *gin.Context) {
 	gpsdata := new(GPSData)
 	total, err := engine.Where("imei = ? AND stamp > ? AND stamp < ?", json.Imei, time.Unix(json.Start, 0), time.Unix(json.End, 0)).Count(gpsdata)
 	if err != nil {
-		fmt.Println("where err:", err)
+		log.Info("where err:", err)
 	}
-	fmt.Println("select total:", total)
+	log.Info("select total:", total)
 
 	var dataresp DataResp
 	dataresp.PageSize = 10
 	dataresp.PageCnt = ((int)(total) + (dataresp.PageSize - 1)) / dataresp.PageSize
 	dataresp.PageIndex = json.Page
 
-	fmt.Println("page:", json.Page)
+	log.Info("page:", json.Page)
 
 	if dataresp.PageIndex > dataresp.PageCnt {
 		dataresp.PageIndex = dataresp.PageCnt
@@ -583,10 +548,10 @@ func dataHandler(c *gin.Context) {
 
 	datas := make([]GPSData, 0)
 	startindex := (dataresp.PageIndex - 1) * dataresp.PageSize
-	fmt.Println("start:", startindex)
+	log.Info("start:", startindex)
 	err = engine.Where("imei = ? AND stamp > ? AND stamp < ?", json.Imei, time.Unix(json.Start, 0), time.Unix(json.End, 0)).Limit(dataresp.PageSize, startindex).Find(&datas)
 	if err != nil {
-		fmt.Println("where err:", err)
+		log.Info("where err:", err)
 	}
 
 	datalist := make([]DataItem, 0)
@@ -622,7 +587,7 @@ func nowGpsHandler(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}
-	fmt.Println("cliams:", cliams)
+	log.Info("cliams:", cliams)
 
 	type DataReq struct {
 		Imei string `json:"imei" binding:"required"`
@@ -650,9 +615,9 @@ func nowGpsHandler(c *gin.Context) {
 	gpsdata := new(GPSData)
 	has, err := engine.Where("imei = ? AND state > 0", json.Imei).Desc("stamp").Limit(1).Get(gpsdata)
 	if err != nil {
-		fmt.Println("where err:", err)
+		log.Info("where err:", err)
 	}
-	fmt.Println("has:", has)
+	log.Info("has:", has)
 
 	var item DataItem
 	item.Stamp = gpsdata.Stamp.Unix()
@@ -681,7 +646,7 @@ func gpsMapHandler(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}
-	fmt.Println("cliams:", cliams)
+	log.Info("cliams:", cliams)
 
 	type DataReq struct {
 		Imei  string `json:"imei" binding:"required"`
@@ -709,7 +674,7 @@ func gpsMapHandler(c *gin.Context) {
 	gpsmap := make([]GPSData, 0)
 	err = engine.Where("imei = ? AND stamp > ? AND stamp < ? AND gpsstate = ?", json.Imei, time.Unix(json.Start, 0), time.Unix(json.End, 0), 1).Asc("stamp").Find(&gpsmap)
 	if err != nil {
-		fmt.Println("where err:", err)
+		log.Info("where err:", err)
 	}
 
 	datalist := make([]DataItem, 0)
@@ -729,7 +694,7 @@ func gpsMapHandler(c *gin.Context) {
 }
 
 func loginHandler(c *gin.Context) {
-	fmt.Println("login post")
+	log.Info("login post")
 	type DataReq struct {
 		User     string `json:"user" binding:"required"`
 		Password string `json:"password" binding:"required"`
@@ -813,7 +778,7 @@ func controlHandler(c *gin.Context) {
 		}
 	}
 
-	fmt.Println("ip:", termip)
+	log.Info("ip:", termip)
 
 	if termip != "" {
 
@@ -860,7 +825,7 @@ func userListHandler(c *gin.Context) {
 		}
 	}
 
-	fmt.Println("ip:", termip)
+	log.Info("ip:", termip)
 
 	if termip != "" {
 		switch json.Cmd {
@@ -906,7 +871,7 @@ func userAddHandler(c *gin.Context) {
 		}
 	}
 
-	fmt.Println("ip:", termip)
+	log.Info("ip:", termip)
 
 	if termip != "" {
 

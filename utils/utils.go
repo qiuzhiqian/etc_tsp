@@ -1,11 +1,5 @@
 package utils
 
-import "fmt"
-
-func init() {
-	fmt.Println("hello module init function")
-}
-
 func Bytes2Word(data []byte) uint16 {
 	if len(data) < 2 {
 		return 0

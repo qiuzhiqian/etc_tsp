@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -20,6 +21,7 @@ import (
 
 	"crypto/md5"
 
+	"github.com/BurntSushi/toml"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
@@ -88,6 +90,26 @@ type DevInfo struct {
 	PlateNum   string `xorm:"plate_num"`
 }
 
+type Config struct {
+	TcpCfg TcpConfig `toml:"tcp"`
+	WebCfg WebConfig `toml:"web"`
+	MapCfg MapConfig `toml:"map"`
+}
+
+type TcpConfig struct {
+	Ip   string
+	Port int
+}
+
+type WebConfig struct {
+	Ip   string
+	Port int
+}
+
+type MapConfig struct {
+	AppKey string
+}
+
 //var connList []net.Conn
 var connManger map[string]*Terminal
 
@@ -97,6 +119,8 @@ var port string
 var engine *xorm.Engine
 
 var ch chan int
+
+var config Config
 
 func checkError(err error) {
 	if err != nil {
@@ -293,22 +317,30 @@ func updateHandler(name string) {
 }
 
 func main() {
+	var err error
 	flag.StringVar(&port, "port", "19902", "server port")
 	flag.Parse()
 
 	logInit()
 
+	curpath := GetCurrentDirectory()
+	_, err = toml.DecodeFile(curpath+"/config.toml", &config)
+	if err != nil {
+		log.Info("config error: ", err)
+		return
+	}
+	fmt.Println(config)
+
 	teststr := "00001234526"
 	teststr = strings.TrimLeft(teststr, "0")
 	log.Info("test:", teststr)
 
-	var err error
 	engine, err = xormInit("postgres", "postgres://pqgotest:pqgotest@localhost/pqgodb?sslmode=require")
 	if err != nil {
 		log.Info("xorm init error: ", err)
 	}
 
-	address := ":" + port
+	address := config.TcpCfg.Ip + ":" + strconv.FormatInt(int64(config.TcpCfg.Port), 10)
 	log.Info("address port ", address)
 
 	listenSock, err := net.Listen("tcp", address)
@@ -408,12 +440,14 @@ func httpServer() {
 
 	router.NoRoute(mainPage)
 
-	router.Run(":8080")
+	address := config.WebCfg.Ip + ":" + strconv.FormatInt(int64(config.WebCfg.Port), 10)
+	log.Info("address port ", address)
+	router.Run(address)
 }
 
 //主页面
 func mainPage(c *gin.Context) {
-	log.Info("no route page")
+	//log.Info("no route page")
 	c.HTML(http.StatusOK, "index.html", gin.H{
 		"title": "Main website",
 	})
@@ -749,24 +783,11 @@ func configHandler(c *gin.Context) {
 	}
 	log.Info("cliams:", cliams)
 
-	type DataReq struct {
-		User     string `json:"user" binding:"required"`
-		Password string `json:"password" binding:"required"`
-	}
-	var json DataReq
-	if err := c.ShouldBindJSON(&json); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	//查找数据库
-	//该用户存在
-	//后面集成jwt
 	type DataResp struct {
-		Token string `json:"token"`
+		MapAppKey string `json:"mapAppKey"`
 	}
 	var resp DataResp
-	resp.Token = "xdfasZsdfa2DsJsfa2"
+	resp.MapAppKey = config.MapCfg.AppKey
 
 	c.JSON(http.StatusOK, resp)
 }
@@ -984,4 +1005,13 @@ func ParseToken(tokenSrt string, SecretKey []byte) (claims jwt.Claims, err error
 	})
 	claims = token.Claims
 	return
+}
+
+func GetCurrentDirectory() string {
+	dir, err := filepath.Abs(filepath.Dir(os.Args[0]))
+	if err != nil {
+		log.Fatal(err)
+		return ""
+	}
+	return strings.Replace(dir, "\\", "/", -1) //将\替换成/
 }

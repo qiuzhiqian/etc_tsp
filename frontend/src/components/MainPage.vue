@@ -53,6 +53,9 @@
   </div>
 </template>
 <script>
+import Vue from "vue";
+import BaiduMap from "vue-baidu-map";
+
 export default {
   data() {
     return {
@@ -71,6 +74,19 @@ export default {
   methods: {
     collapsedSider() {
       this.$refs.side1.toggleCollapse();
+    }
+  },
+  mounted: function() {
+    if (this.$store.state.mapKey == "") {
+      this.axios.post("/api/config").then(resp => {
+        window.console.log(resp.data);
+        this.$store.commit("setMapkey", resp.data.mapAppKey);
+
+        Vue.use(BaiduMap, {
+          // ak 是在百度地图开发者平台申请的密钥 详见 http://lbsyun.baidu.com/apiconsole/key */
+          ak: this.$store.state.mapKey
+        });
+      });
     }
   }
 };

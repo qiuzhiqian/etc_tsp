@@ -1,0 +1,12 @@
+# config
+
+[tcp]
+ip = ""
+port = 19903
+
+[web]
+ip = ""
+port = 8080
+
+[map]
+appKey = ""

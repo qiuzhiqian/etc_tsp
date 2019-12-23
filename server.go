@@ -1,7 +1,6 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"net"
 	"os"
@@ -114,7 +113,6 @@ type MapConfig struct {
 var connManger map[string]*Terminal
 
 var ipaddress string
-var port string
 
 var engine *xorm.Engine
 
@@ -318,9 +316,6 @@ func updateHandler(name string) {
 
 func main() {
 	var err error
-	flag.StringVar(&port, "port", "19902", "server port")
-	flag.Parse()
-
 	logInit()
 
 	curpath := GetCurrentDirectory()

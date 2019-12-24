@@ -19,6 +19,9 @@
 地图导航:  
 ![map](https://raw.githubusercontent.com/qiuzhiqian/etc_tsp/master/doc/img/map_1.png)
 
+用户管理:  
+![map](https://raw.githubusercontent.com/qiuzhiqian/etc_tsp/master/doc/img/users_1.png)
+
 ## 编译
 ```c
 $cd frontend

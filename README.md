@@ -33,6 +33,9 @@ $cd ..
 $go build
 ```
 
+## 代码导读文档
+[工程设计流程](https://github.com/qiuzhiqian/etc_tsp/blob/master/doc/README.md)
+
 ## 技术栈
 ### 后端
 - golang
@@ -40,12 +43,14 @@ $go build
 - postgresql
 - xorm
 - jwt
+- logrus
 
 ### 前端
 - vue
 - iview/ant designer
 - vue-router
 - axios
+- vue-baidu-map
 
 ## 路由
 后端路由同一分配到/上面，子页面路由有前端管理

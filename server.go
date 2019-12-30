@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"tsp/term"
 	"tsp/utils"
 
 	"bufio"
@@ -24,6 +25,8 @@ import (
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
+
+	"tsp/proto"
 )
 
 var jwtSecKey []byte = []byte("asdsaf452g45aert")
@@ -57,38 +60,6 @@ type DevPage struct {
 	Page int `form:"page" json:"page"  binding:"required"`
 }
 
-type GPSData struct {
-	Imei      string    `xorm:"pk notnull imei`
-	Stamp     time.Time `xorm:"DateTime pk notnull stamp`
-	WarnFlag  uint32    `xorm:"warnflag"`
-	State     uint32    `xorm:"state"`
-	AccState  uint8     `xorm:"accstate"`
-	GpsState  uint8     `xorm:"gpsstate"`
-	Latitude  uint32    `xorm:"latitude"`
-	Longitude uint32    `xorm:"longitude"`
-	Altitude  uint16    `xorm:"altitude"`
-	Speed     uint16    `xorm:"speed"`
-	Direction uint16    `xorm:"direction"`
-}
-
-func (d GPSData) TableName() string {
-	return "gps_data"
-}
-
-type DevInfo struct {
-	Authkey    string `xorm:"auth_key"`
-	Imei       string `xorm:"imei"`
-	Vin        string `xorm:"vin"`
-	PhoneNum   string `xorm:"pk notnull phone_num"`
-	ProvId     uint16 `xorm:"prov_id"`
-	CityId     uint16 `xorm:"city_id"`
-	Manuf      string `xorm:"manuf"`
-	TermType   string `xorm:"term_type"`
-	TermId     string `xorm:"term_id"`
-	PlateColor int    `xorm:"plate_color"`
-	PlateNum   string `xorm:"plate_num"`
-}
-
 type Config struct {
 	TcpCfg TcpConfig `toml:"tcp"`
 	WebCfg WebConfig `toml:"web"`
@@ -110,13 +81,11 @@ type MapConfig struct {
 }
 
 //var connList []net.Conn
-var connManger map[string]*Terminal
+var connManger map[string]*term.Terminal
 
 var ipaddress string
 
 var engine *xorm.Engine
-
-var ch chan int
 
 var config Config
 
@@ -132,12 +101,13 @@ func recvConnMsg(conn net.Conn) {
 	addr := conn.RemoteAddr()
 	log.WithFields(logrus.Fields{"network": addr.Network(), "ip": addr.String()}).Info("recv")
 
-	var term *Terminal = &Terminal{
+	var t *term.Terminal = &term.Terminal{
 		Conn:   conn,
 		Engine: engine,
+		Ch:     make(chan int),
 	}
-	term.Conn = conn
-	connManger[addr.String()] = term
+	t.Conn = conn
+	connManger[addr.String()] = t
 	ipaddress = addr.String()
 
 	defer func() {
@@ -169,11 +139,20 @@ func recvConnMsg(conn net.Conn) {
 		if err != nil {
 			log.WithFields(logrus.Fields{"error": err.Error()}).Info("insert")
 		}
-		frmlen := term.DataFilter(buf)
-		if frmlen == -2 {
-			buf = make([]byte, 0)
-		} else if frmlen > 0 {
-			sendBuf := term.FrameHandle(buf)
+
+		var msg []proto.Message
+		var lens int
+		msg, lens, err = proto.Filter(buf)
+		if err != nil {
+			//
+		}
+
+		buf = buf[lens:]
+
+		for len(msg) > 0 {
+			//处理消息
+			sendBuf := t.Handler(msg[0])
+
 			if sendBuf != nil {
 				outlog = ""
 				for _, val := range sendBuf {
@@ -181,19 +160,20 @@ func recvConnMsg(conn net.Conn) {
 				}
 				log.WithFields(logrus.Fields{"data": outlog}).Info("---> ")
 
-				logframe := new(LogFrame)
-				logframe.Stamp = time.Now()
-				logframe.Dir = 1
-				logframe.Frame = outlog
+				logframe := &LogFrame{
+					Stamp: time.Now(),
+					Dir:   1,
+					Frame: outlog,
+				}
 				_, err = engine.Insert(logframe)
 				if err != nil {
 					log.WithFields(logrus.Fields{"error": err.Error()}).Info("insert")
 				}
 
 				conn.Write(sendBuf)
-			}
 
-			buf = make([]byte, 0)
+				msg = msg[1:]
+			}
 		}
 	}
 }
@@ -220,98 +200,6 @@ func readFull(rd *bufio.Reader, buff []byte) (int, error) {
 		err = nil
 	}
 	return pos, err
-}
-
-func updateHandler(name string) {
-	var verstr string = "v1.0.0"
-	var tempTerm *Terminal = connManger[ipaddress]
-	//vbyte := []byte{verstr}
-	if fileObj, err := os.Open(name); err == nil {
-		defer fileObj.Close()
-
-		info, _ := fileObj.Stat()
-		var filesize uint32 = uint32(info.Size())
-
-		var sumcnt uint16 = 0
-		//var reqlen uint32 = uint32(1 + 5 + 1 + len(verstr) + 4)
-		//if (uint32(reqlen)+filesize)%1024 == 0 {
-		//	sumcnt = (reqlen + filesize) / 1024
-		//} else {
-		//	sumcnt = (reqlen+filesize)/1024 + 1
-		//}
-
-		var curCnt uint16 = 1
-
-		//一个文件对象本身是实现了io.Reader的 使用bufio.NewReader去初始化一个Reader对象，存在buffer中的，读取一次就会被清空
-		reader := bufio.NewReader(fileObj)
-		//读取Reader对象中的内容到[]byte类型的buf中
-
-		var buf []byte
-		for {
-			if curCnt == 1 {
-				buf = append(buf, 0)
-				buf = append(buf, make([]byte, 5)...)
-				buf = append(buf, byte(len(verstr)))
-				buf = append(buf, verstr...)
-				buf = append(buf, utils.Dword2Bytes(filesize)...)
-
-				templen := len(buf)
-				buf = append(buf, make([]byte, 1023-templen)...)
-
-				if (uint32(templen)+filesize)%1023 == 0 {
-					sumcnt = uint16((uint32(templen) + filesize) / 1023)
-				} else {
-					sumcnt = uint16((uint32(templen)+filesize)/1023 + 1)
-				}
-
-				if n, err := readFull(reader, buf[templen:]); err == nil {
-					log.Info("The number of bytes read:" + strconv.Itoa(n))
-					//这里的buf是一个[]byte，因此如果需要只输出内容，仍然需要将文件内容的换行符替换掉
-					log.Info("data[", curCnt, "/", sumcnt, "]:", buf)
-
-					log.Info("phone:", tempTerm.GetPhone())
-					retbuf := tempTerm.MakeFrameMult(UpdateReq, 1, tempTerm.GetPhone(), 1, sumcnt, curCnt, buf)
-					tempTerm.Conn.Write(retbuf)
-					var outlog string = ""
-					for _, val := range retbuf {
-						outlog += fmt.Sprintf("%02X", val)
-					}
-					log.Info("---> ", outlog)
-
-					curCnt++
-					time.Sleep(5000 * time.Millisecond)
-
-				} else {
-					log.Info("read end")
-					break
-				}
-			} else {
-				buf = make([]byte, 1023)
-				if n, err := readFull(reader, buf); err == nil {
-					log.Info("The number of bytes read:" + strconv.Itoa(n))
-					//这里的buf是一个[]byte，因此如果需要只输出内容，仍然需要将文件内容的换行符替换掉
-					log.Info("data[", curCnt, "/", sumcnt, "]:", buf)
-
-					log.Info("phone:", tempTerm.GetPhone())
-					retbuf := tempTerm.MakeFrameMult(UpdateReq, 1, tempTerm.GetPhone(), 1, sumcnt, curCnt, buf)
-					tempTerm.Conn.Write(retbuf)
-					var outlog string = ""
-					for _, val := range retbuf {
-						outlog += fmt.Sprintf("%02X", val)
-					}
-					log.Info("---> ", outlog)
-
-					curCnt++
-					//time.Sleep(5000 * time.Millisecond)
-					<-ch
-
-				} else {
-					log.Info("read end")
-					break
-				}
-			}
-		}
-	}
 }
 
 func main() {
@@ -342,9 +230,7 @@ func main() {
 	checkError(err)
 	defer listenSock.Close()
 
-	connManger = make(map[string]*Terminal)
-
-	ch = make(chan int)
+	connManger = make(map[string]*term.Terminal)
 
 	go httpServer()
 
@@ -378,13 +264,13 @@ func xormInit(driverName string, dataSourceName string) (*xorm.Engine, error) {
 		return engine, err
 	}
 
-	gpsdata := new(GPSData)
+	gpsdata := new(term.GPSData)
 	err = engine.Sync2(gpsdata)
 	if err != nil {
 		return engine, err
 	}
 
-	devinfo := new(DevInfo)
+	devinfo := new(term.DevInfo)
 	err = engine.Sync2(devinfo)
 	if err != nil {
 		return engine, err
@@ -563,7 +449,7 @@ func dataHandler(c *gin.Context) {
 	}
 
 	//获取总数
-	gpsdata := new(GPSData)
+	gpsdata := new(term.GPSData)
 	total, err := engine.Where("imei = ? AND stamp > ? AND stamp < ?", json.Imei, time.Unix(json.Start, 0), time.Unix(json.End, 0)).Count(gpsdata)
 	if err != nil {
 		log.Info("where err:", err)
@@ -581,7 +467,7 @@ func dataHandler(c *gin.Context) {
 		dataresp.PageIndex = dataresp.PageCnt
 	}
 
-	datas := make([]GPSData, 0)
+	datas := make([]term.GPSData, 0)
 	startindex := (dataresp.PageIndex - 1) * dataresp.PageSize
 	log.Info("start:", startindex)
 	err = engine.Where("imei = ? AND stamp > ? AND stamp < ?", json.Imei, time.Unix(json.Start, 0), time.Unix(json.End, 0)).Limit(dataresp.PageSize, startindex).Find(&datas)
@@ -647,7 +533,7 @@ func nowGpsHandler(c *gin.Context) {
 	}
 
 	//获取总数
-	gpsdata := new(GPSData)
+	gpsdata := new(term.GPSData)
 	has, err := engine.Where("imei = ? AND state > 0", json.Imei).Desc("stamp").Limit(1).Get(gpsdata)
 	if err != nil {
 		log.Info("where err:", err)
@@ -706,7 +592,7 @@ func gpsMapHandler(c *gin.Context) {
 	}
 
 	//获取总数
-	gpsmap := make([]GPSData, 0)
+	gpsmap := make([]term.GPSData, 0)
 	err = engine.Where("imei = ? AND stamp > ? AND stamp < ? AND gpsstate = ?", json.Imei, time.Unix(json.Start, 0), time.Unix(json.End, 0), 1).Asc("stamp").Find(&gpsmap)
 	if err != nil {
 		log.Info("where err:", err)
@@ -827,13 +713,9 @@ func controlHandler(c *gin.Context) {
 
 		switch json.Cmd {
 		case "reset":
-			buf := connManger[termip].makeApduCtrl(4, "")
-			retbuf := connManger[termip].MakeFrame(CtrlReq, 1, connManger[termip].GetPhone(), 1, buf)
-			connManger[termip].Conn.Write(retbuf)
+			//
 		case "factory":
-			buf := connManger[termip].makeApduCtrl(5, "")
-			retbuf := connManger[termip].MakeFrame(CtrlReq, 1, connManger[termip].GetPhone(), 1, buf)
-			connManger[termip].Conn.Write(retbuf)
+			//
 		}
 
 	}

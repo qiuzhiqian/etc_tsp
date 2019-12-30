@@ -22,7 +22,7 @@ const (
 	CtrlReq     uint16 = 0x8105
 )
 
-type MutilField struct {
+type MultiField struct {
 	MsgSum   uint16
 	MsgIndex uint16
 }
@@ -33,10 +33,10 @@ type Header struct {
 	Version   uint8
 	PhoneNum  string
 	SeqNum    uint16
-	MutilFlag MutilField
+	MutilFlag MultiField
 }
 
-func (h *Header) IsMutil() bool {
+func (h *Header) IsMulti() bool {
 	if ((h.Attr >> 12) & 0x0001) > 0 {
 		return true
 	}
@@ -48,7 +48,7 @@ func (h *Header) BodyLen() int {
 	return int(h.Attr & 0x03ff)
 }
 
-//MakeAttr is gen attr
+//MakeAttr is generate attr
 func MakeAttr(verFlag byte, mut bool, enc byte, lens uint16) uint16 {
 	attr := lens & 0x03FF
 
@@ -113,51 +113,84 @@ func filterSigle(data []byte) (Message, int, error) {
 		endindex := bytes.IndexByte(data[usedLen:], ProtoHeader)
 		if endindex >= 0 {
 			endindex = endindex + usedLen
-			if endindex-(startindex+1) > 15 {
-				var msg Message
-				msg.HEADER.MID = codec.Bytes2Word(data[usedLen:])
-				usedLen = usedLen + 2
-				msg.HEADER.Attr = codec.Bytes2Word(data[usedLen:])
-				usedLen = usedLen + 2
-				msg.HEADER.Version = data[usedLen]
-				usedLen = usedLen + 1
 
-				tempPhone := bytes.TrimLeftFunc(data[usedLen:usedLen+10], func(r rune) bool { return r == 0x00 })
-				msg.HEADER.PhoneNum = string(tempPhone)
-				usedLen = usedLen + 10
-				msg.HEADER.SeqNum = codec.Bytes2Word(data[usedLen:])
-				usedLen = usedLen + 2
+			frameData := Escape(data[startindex+1:endindex], []byte{0x7d, 0x02}, []byte{0x7e})
+			frameData = Escape(frameData, []byte{0x7d, 0x01}, []byte{0x7d})
 
-				if msg.HEADER.IsMutil() {
-					msg.HEADER.MutilFlag.MsgSum = codec.Bytes2Word(data[usedLen:])
-					usedLen = usedLen + 2
-					msg.HEADER.MutilFlag.MsgIndex = codec.Bytes2Word(data[usedLen:])
-					usedLen = usedLen + 2
-				}
-
-				if endindex-1 < usedLen {
-					return Message{}, endindex + 1, fmt.Errorf("flag code is too short")
-				}
-
-				msg.BODY = make([]byte, endindex-1-usedLen)
-				copy(msg.BODY, data[usedLen:endindex-1])
-				usedLen = endindex - 1
-
-				rawcs := checkSum(data[startindex+1 : endindex-1])
-
-				if rawcs != data[endindex-1] {
-					return Message{}, endindex + 1, fmt.Errorf("cs is not match:%d--%d,index:%d", rawcs, data[endindex-1], endindex-1)
-				}
-
-				return msg, endindex + 1, nil
+			msg, err := frameParser(frameData)
+			if err != nil {
+				return Message{}, endindex, err
 			}
 
-			return Message{}, endindex + 1, fmt.Errorf("flag code is too short")
+			return msg, endindex + 1, nil
 		}
 
 		return Message{}, startindex, fmt.Errorf("can't find end flag")
 	}
 	return Message{}, len(data), fmt.Errorf("can't find start flag")
+}
+
+func Escape(data, oldBytes, newBytes []byte) []byte {
+	buff := make([]byte, 0)
+
+	var startindex int = 0
+
+	for startindex < len(data) {
+		index := bytes.Index(buff[startindex:], oldBytes)
+		if index >= 0 {
+			buff = append(buff, data[startindex:index]...)
+			buff = append(buff, newBytes...)
+			startindex = index + len(oldBytes)
+		} else {
+			buff = append(buff, data[startindex:]...)
+			startindex = len(data)
+		}
+	}
+	return buff
+}
+
+func frameParser(data []byte) (Message, error) {
+	if len(data)+2 < 17+3 {
+		return Message{}, fmt.Errorf("header is too short")
+	}
+
+	var usedLen int = 0
+	var msg Message
+	msg.HEADER.MID = codec.Bytes2Word(data[usedLen:])
+	usedLen = usedLen + 2
+	msg.HEADER.Attr = codec.Bytes2Word(data[usedLen:])
+	usedLen = usedLen + 2
+	msg.HEADER.Version = data[usedLen]
+	usedLen = usedLen + 1
+
+	tempPhone := bytes.TrimLeftFunc(data[usedLen:usedLen+10], func(r rune) bool { return r == 0x00 })
+	msg.HEADER.PhoneNum = string(tempPhone)
+	usedLen = usedLen + 10
+	msg.HEADER.SeqNum = codec.Bytes2Word(data[usedLen:])
+	usedLen = usedLen + 2
+
+	if msg.HEADER.IsMulti() {
+		msg.HEADER.MutilFlag.MsgSum = codec.Bytes2Word(data[usedLen:])
+		usedLen = usedLen + 2
+		msg.HEADER.MutilFlag.MsgIndex = codec.Bytes2Word(data[usedLen:])
+		usedLen = usedLen + 2
+	}
+
+	if len(data)-1 < usedLen {
+		return Message{}, fmt.Errorf("flag code is too short")
+	}
+
+	msg.BODY = make([]byte, len(data)-1-usedLen)
+	copy(msg.BODY, data[usedLen:len(data)-1])
+	usedLen = len(data) - 1
+
+	rawcs := checkSum(data[:len(data)-1])
+
+	if rawcs != data[len(data)-1] {
+		return Message{}, fmt.Errorf("cs is not match:%d--%d", rawcs, data[len(data)-1])
+	}
+
+	return msg, nil
 }
 
 func checkSum(data []byte) byte {

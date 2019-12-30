@@ -51,6 +51,7 @@ $go build
 - vue-router
 - axios
 - vue-baidu-map
+- vuex
 
 ## 路由
 后端路由同一分配到/上面，子页面路由有前端管理

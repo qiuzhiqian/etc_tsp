@@ -64,6 +64,7 @@ type Config struct {
 	TcpCfg TcpConfig `toml:"tcp"`
 	WebCfg WebConfig `toml:"web"`
 	MapCfg MapConfig `toml:"map"`
+	PgCfg  PgConfig  `toml:"postgresql"`
 }
 
 type TcpConfig struct {
@@ -78,6 +79,13 @@ type WebConfig struct {
 
 type MapConfig struct {
 	AppKey string
+}
+
+type PgConfig struct {
+	Hostname  string
+	Tablename string
+	User      string
+	Password  string
 }
 
 //var connList []net.Conn
@@ -99,7 +107,6 @@ func recvConnMsg(conn net.Conn) {
 		Engine: engine,
 		Ch:     make(chan int),
 	}
-	t.Conn = conn
 	connManger[addr.String()] = t
 	ipaddress = addr.String()
 
@@ -207,11 +214,8 @@ func main() {
 	}
 	fmt.Println(config)
 
-	teststr := "00001234526"
-	teststr = strings.TrimLeft(teststr, "0")
-	log.Info("test:", teststr)
-
-	engine, err = xormInit("postgres", "postgres://pqgotest:pqgotest@localhost/pqgodb?sslmode=require")
+	connStr := "postgres://" + config.PgCfg.User + ":" + config.PgCfg.Password + "@" + config.PgCfg.Hostname + "/" + config.PgCfg.Tablename + "?sslmode=require"
+	engine, err = xormInit("postgres", connStr)
 	if err != nil {
 		log.Info("xorm init error: ", err)
 	}

@@ -2304,8 +2304,275 @@ engine, err = xormInit("postgres", "postgres://pqgotest:pqgotest@localhost/pqgod
 
 数据库的插入操作主要使用xorm的Insert函数，查询使用xorm的Find和Get。查询可以配合Where等函数使用。具体参考[xorm官方文档](http://gobook.io/read/gitea.com/xorm/manual-zh-CN/)
 
-## 配置加载
 
 ## TCP服务器
 
 前面的所有内容都是为了实现一个基于jtt808协议的TCP服务器而做的工作，我们现在需要吧上面讲解的内容整合起来，让各个模块协调工作，完成一整套的服务流程。
+
+### 配置加载
+
+先说一下配置加载，对于一个应用程序，为了增加其灵活性，不可避免的需要使用配置文件。综合个方面考虑，我选择使用toml格式的配置文件，解析库使用"github.com/BurntSushi/toml"
+
+```toml
+# config
+
+[tcp]
+ip = ""
+port = 19903
+
+[web]
+ip = ""
+port = 8080
+
+[map]
+appKey = "your baidu map key"
+
+[postgresql]
+hostname="localhost"
+tablename="pqgodb"
+user="pqgotest"
+password="pqgotest"
+```
+
+配置包括了整个应用的配置，定义配置对应的结构体：
+
+```go
+type Config struct {
+	TcpCfg TcpConfig `toml:"tcp"`
+	WebCfg WebConfig `toml:"web"`
+	MapCfg MapConfig `toml:"map"`
+	PgCfg  PgConfig  `toml:"postgresql"`
+}
+
+type TcpConfig struct {
+	Ip   string
+	Port int
+}
+
+type WebConfig struct {
+	Ip   string
+	Port int
+}
+
+type MapConfig struct {
+	AppKey string
+}
+
+type PgConfig struct {
+	Hostname  string
+	Tablename string
+	User      string
+	Password  string
+}
+
+var config Config
+```
+
+配置加载
+
+```go
+curpath := GetCurrentDirectory()
+_, err = toml.DecodeFile(curpath+"/config.toml", &config)
+if err != nil {
+    log.Info("config error: ", err)
+    return
+}
+```
+
+其中GetCurrentDirectory获取当前应用的绝对路径
+
+```go
+func GetCurrentDirectory() string {
+	dir, err := filepath.Abs(filepath.Dir(os.Args[0]))
+	if err != nil {
+		log.Fatal(err)
+		return ""
+	}
+	return strings.Replace(dir, "\\", "/", -1) //将\替换成/
+}
+```
+
+### TCP连接管理
+
+这一部分基本跟前面后端模型中的讲解一致。
+
+```go
+var connManger map[string]*term.Terminal
+
+connManger = make(map[string]*term.Terminal)
+```
+
+创建服务器还是listen和accept
+
+```go
+address := config.TcpCfg.Ip + ":" + strconv.FormatInt(int64(config.TcpCfg.Port), 10)
+log.Info("address port ", address)
+
+listenSock, err := net.Listen("tcp", address)
+if err != nil {
+    log.WithFields(logrus.Fields{"Error:": err.Error()}).Error("check")
+    os.Exit(1)
+}
+
+defer listenSock.Close()
+
+for {
+    newConn, err := listenSock.Accept()
+    if err != nil {
+        continue
+    }
+
+    go recvConnMsg(newConn)
+}
+```
+
+recvConnMsg处理TCP客户端数据接收
+
+```go
+func recvConnMsg(conn net.Conn){
+    
+}
+```
+
+首先创建一个Terminal并添加到connManager中
+
+```go
+buf := make([]byte, 0)
+addr := conn.RemoteAddr()
+log.WithFields(logrus.Fields{"network": addr.Network(), "ip": addr.String()}).Info("recv")
+
+var t *term.Terminal = &term.Terminal{
+    Conn:   conn,
+    Engine: engine,
+    Ch:     make(chan int),
+}
+connManger[addr.String()] = t
+ipaddress = addr.String()
+```
+
+如果该TCP断开的话，需要从connManager中删除对应的元素。
+
+```go
+defer func() {
+    delete(connManger, addr.String())
+    conn.Close()
+}()
+```
+
+之后就是循环读取数据然后处理数据了：
+
+```go
+for {
+    tempbuf := make([]byte, 1024)
+}
+```
+
+读取数据，这个数据要与上次没处理完的数据进行拼接，因为可能有粘包拆包的情况
+
+```go
+n, err := conn.Read(tempbuf)
+
+if err != nil {
+    log.WithFields(logrus.Fields{"network": addr.Network(), "ip": addr.String()}).Info("closed")
+    return
+}
+
+buf = append(buf, tempbuf[:n]...)
+var outlog string
+for _, val := range buf {
+    outlog += fmt.Sprintf("%02X", val)
+}
+log.WithFields(logrus.Fields{"data": outlog}).Info("<--- ")
+
+logframe := new(LogFrame)
+logframe.Stamp = time.Now()
+logframe.Dir = 0
+logframe.Frame = outlog
+_, err = engine.Insert(logframe)
+if err != nil {
+    log.WithFields(logrus.Fields{"error": err.Error()}).Info("insert")
+}
+```
+
+调用过滤器对接收的数据进行处理，并对已经使用的字节进行偏移：
+
+```go
+var msg []proto.Message
+var lens int
+msg, lens, err = proto.Filter(buf)
+if err != nil {
+    //
+}
+
+buf = buf[lens:]
+```
+
+msg是一个消息切片，对这个切片中的消息进行循环处理，直到全部处理完为止：
+
+```go
+for len(msg) > 0 {
+    //处理消息
+    sendBuf := t.Handler(msg[0])
+
+    if sendBuf != nil {
+        outlog = ""
+        for _, val := range sendBuf {
+            outlog += fmt.Sprintf("%02X", val)
+        }
+        log.WithFields(logrus.Fields{"data": outlog}).Info("---> ")
+
+        logframe := &LogFrame{
+            Stamp: time.Now(),
+            Dir:   1,
+            Frame: outlog,
+        }
+        _, err = engine.Insert(logframe)
+        if err != nil {
+            log.WithFields(logrus.Fields{"error": err.Error()}).Info("insert")
+        }
+
+        conn.Write(sendBuf)
+
+        msg = msg[1:]
+    }
+}
+```
+
+消息处理调用了处理器，处理器会返回需要响应的数据，将处理器返回的数据通过conn.Write发送给对应的tcp就响应成功。
+
+这就是整个tcp服务器的基本模型了。
+
+运行起来的实际日志情况：
+
+```
+time="2019-12-31T17:53:52+08:00" level=info msg="address port :8080"
+[GIN-debug] Listening and serving HTTP on :8080
+time="2019-12-31T17:54:01+08:00" level=info msg=recv ip="127.0.0.1:38936" network=tcp
+time="2019-12-31T17:54:01+08:00" level=info msg="<--- " data=7E0102402C018986041210187042775504B0083572747333323573383635353031303433393534363737312E313700000000000000000000000000000000FB7E
+time="2019-12-31T17:54:01+08:00" level=info msg="---> " data=7E80014005018986041210187042775504B004B0010200C77E
+time="2019-12-31T17:54:03+08:00" level=info msg="<--- " data=7E0200401C018986041210187042775504B100000000000000030158A08A06CA2B3B01270000003F191231175400277E
+time="2019-12-31T17:54:03+08:00" level=info msg="---> " data=7E80014005018986041210187042775504B104B1020000C67E
+time="2019-12-31T17:54:05+08:00" level=info msg="<--- " data=7E0200401C018986041210187042775504B200000000000000030158A08506CA2B3C012A000000151912311754050E7E
+time="2019-12-31T17:54:06+08:00" level=info msg="---> " data=7E80014005018986041210187042775504B204B2020000C67E
+time="2019-12-31T17:54:08+08:00" level=info msg="<--- " data=7E0200401C018986041210187042775504B300000000000000030158A08A06CA2B3B01270000003F191231175355777E
+time="2019-12-31T17:54:08+08:00" level=info msg="---> " data=7E80014005018986041210187042775504B304B3020000C67E
+time="2019-12-31T17:54:11+08:00" level=info msg="<--- " data=7E0200401C018986041210187042775504B400000000000000030158A08206CA2B39013100000015191231175410047E
+time="2019-12-31T17:54:11+08:00" level=info msg="---> " data=7E80014005018986041210187042775504B404B4020000C67E
+time="2019-12-31T17:54:13+08:00" level=info msg="<--- " data=7E00024000018986041210187042775504B5F37E
+time="2019-12-31T17:54:13+08:00" level=info msg="---> " data=7E80014005018986041210187042775504B504B5000200C67E
+time="2019-12-31T17:54:16+08:00" level=info msg="<--- " data=7E0200401C018986041210187042775504B600000000000000030158A07D0206CA2B3E012E00000015191231175415E77E
+time="2019-12-31T17:54:16+08:00" level=info msg="---> " data=7E80014005018986041210187042775504B604B6020000C67E
+time="2019-12-31T17:54:21+08:00" level=info msg="<--- " data=7E0200401C018986041210187042775504B700000000000000030158A07D0206CA2B3E012E00000015191231175420D37E
+time="2019-12-31T17:54:21+08:00" level=info msg="---> " data=7E80014005018986041210187042775504B704B7020000C67E
+time="2019-12-31T17:54:26+08:00" level=info msg="<--- " data=7E0200401C018986041210187042775504B800000000000000030158A07D0206CA2B3E012E00000015191231175425D97E
+time="2019-12-31T17:54:26+08:00" level=info msg="---> " data=7E80014005018986041210187042775504B804B8020000C67E
+time="2019-12-31T17:54:31+08:00" level=info msg="<--- " data=7E0200401C018986041210187042775504B900000000000000030158A07D0206CA2B3E013100000015191231175430D27E
+time="2019-12-31T17:54:31+08:00" level=info msg="---> " data=7E80014005018986041210187042775504B904B9020000C67E
+time="2019-12-31T17:54:36+08:00" level=info msg="<--- " data=7E0200401C018986041210187042775504BA00000000000000030158A07D0206CA2B3D013400000015191231175435D27E
+time="2019-12-31T17:54:36+08:00" level=info msg="---> " data=7E80014005018986041210187042775504BA04BA020000C67E
+time="2019-12-31T17:54:41+08:00" level=info msg="<--- " data=7E0200401C018986041210187042775504BB00000000000000030158A07D0206CA2B3D013400000015191231175440A67E
+time="2019-12-31T17:54:41+08:00" level=info msg="---> " data=7E80014005018986041210187042775504BB04BB020000C67E
+time="2019-12-31T17:54:42+08:00" level=info msg="<--- " data=7E00024000018986041210187042775504BCFA7E
+time="2019-12-31T17:54:42+08:00" level=info msg="---> " data=7E80014005018986041210187042775504BC04BC000200C67E
+```
+

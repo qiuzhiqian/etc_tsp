@@ -1,5 +1,7 @@
 package utils
 
+import "strconv"
+
 func Bytes2Word(data []byte) uint16 {
 	if len(data) < 2 {
 		return 0
@@ -62,32 +64,16 @@ func AscToHex(asc byte) byte {
 }
 
 func HexBuffToString(hex []byte) string {
-	var ret []byte
-
-	for _, item := range hex {
-		hasc := HexToAsc((item >> 4) & 0x0F)
-		lasc := HexToAsc((item) & 0x0F)
-
-		if hasc == 0 || lasc == 0 {
-			break
+	var ret string
+	for _, value := range hex {
+		str := strconv.FormatUint(uint64(value), 16)
+		if len([]rune(str)) == 1 {
+			ret = ret + "0" + str
+		} else {
+			ret = ret + str
 		}
-
-		ret = append(ret, hasc, lasc)
 	}
-
-	//var index int = -1
-	//for i, val := range ret {
-	//	if val != '0' {
-	//		index = i
-	//		break
-	//	}
-	//}
-
-	//if index < 0 {
-	//	return string("")
-	//}
-
-	return string(ret)
+	return ret
 }
 
 /*std::vector<uint8_t> CUtils::StringToHexBuff(const std::string& str){

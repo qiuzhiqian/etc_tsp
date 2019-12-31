@@ -36,6 +36,7 @@ type Header struct {
 	MutilFlag MultiField
 }
 
+//IsMulti will return true if the header is multi frame
 func (h *Header) IsMulti() bool {
 	if ((h.Attr >> 12) & 0x0001) > 0 {
 		return true
@@ -70,10 +71,12 @@ type Message struct {
 	BODY   []byte
 }
 
+//Version return proto version
 func Version() string {
 	return "1.0.0"
 }
 
+//Name return proto name
 func Name() string {
 	return "jtt808"
 }
@@ -129,6 +132,7 @@ func filterSigle(data []byte) (Message, int, error) {
 	return Message{}, len(data), fmt.Errorf("can't find start flag")
 }
 
+//Escape is function escape oldbytes to new bytes
 func Escape(data, oldBytes, newBytes []byte) []byte {
 	buff := make([]byte, 0)
 

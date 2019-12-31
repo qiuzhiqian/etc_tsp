@@ -228,6 +228,11 @@ func Packer(msg Message) []byte {
 	tempbytes = utils.Word2Bytes(msg.HEADER.SeqNum)
 	data = append(data, tempbytes...)
 
+	if msg.HEADER.IsMulti() {
+		data = append(data, utils.Word2Bytes(msg.HEADER.MutilFlag.MsgSum)...)
+		data = append(data, utils.Word2Bytes(msg.HEADER.MutilFlag.MsgIndex)...)
+	}
+
 	data = append(data, msg.BODY...)
 
 	csdata := byte(checkSum(data[:]))

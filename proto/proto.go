@@ -84,8 +84,10 @@ func Filter(data []byte) ([]Message, int, error) {
 	msgList := make([]Message, 0)
 	var cnt int = 0
 	for {
+		//添加一个计数器，防止数据异常导致死循环
 		cnt++
 		if cnt > 10 {
+			cnt = 0
 			return []Message{}, 0, fmt.Errorf("time too much")
 		}
 		if usedLen >= len(data) {
@@ -114,10 +116,7 @@ func filterSigle(data []byte) (Message, int, error) {
 		if endindex >= 0 {
 			endindex = endindex + usedLen
 
-			frameData := Escape(data[startindex+1:endindex], []byte{0x7d, 0x02}, []byte{0x7e})
-			frameData = Escape(frameData, []byte{0x7d, 0x01}, []byte{0x7d})
-
-			msg, err := frameParser(frameData)
+			msg, err := frameParser(data[startindex+1 : endindex])
 			if err != nil {
 				return Message{}, endindex, err
 			}
@@ -136,7 +135,7 @@ func Escape(data, oldBytes, newBytes []byte) []byte {
 	var startindex int = 0
 
 	for startindex < len(data) {
-		index := bytes.Index(buff[startindex:], oldBytes)
+		index := bytes.Index(data[startindex:], oldBytes)
 		if index >= 0 {
 			buff = append(buff, data[startindex:index]...)
 			buff = append(buff, newBytes...)
@@ -154,41 +153,46 @@ func frameParser(data []byte) (Message, error) {
 		return Message{}, fmt.Errorf("header is too short")
 	}
 
+	//不包含帧头帧尾
+	frameData := Escape(data[:len(data)], []byte{0x7d, 0x02}, []byte{0x7e})
+	frameData = Escape(frameData, []byte{0x7d, 0x01}, []byte{0x7d})
+
+	//之后的操作都是基于frameData来处理
+	rawcs := checkSum(frameData[:len(frameData)-1])
+
+	if rawcs != frameData[len(frameData)-1] {
+		return Message{}, fmt.Errorf("cs is not match:%d--%d", rawcs, frameData[len(frameData)-1])
+	}
+
 	var usedLen int = 0
 	var msg Message
-	msg.HEADER.MID = codec.Bytes2Word(data[usedLen:])
+	msg.HEADER.MID = codec.Bytes2Word(frameData[usedLen:])
 	usedLen = usedLen + 2
-	msg.HEADER.Attr = codec.Bytes2Word(data[usedLen:])
+	msg.HEADER.Attr = codec.Bytes2Word(frameData[usedLen:])
 	usedLen = usedLen + 2
-	msg.HEADER.Version = data[usedLen]
+	msg.HEADER.Version = frameData[usedLen]
 	usedLen = usedLen + 1
 
-	tempPhone := bytes.TrimLeftFunc(data[usedLen:usedLen+10], func(r rune) bool { return r == 0x00 })
+	tempPhone := bytes.TrimLeftFunc(frameData[usedLen:usedLen+10], func(r rune) bool { return r == 0x00 })
 	msg.HEADER.PhoneNum = string(tempPhone)
 	usedLen = usedLen + 10
-	msg.HEADER.SeqNum = codec.Bytes2Word(data[usedLen:])
+	msg.HEADER.SeqNum = codec.Bytes2Word(frameData[usedLen:])
 	usedLen = usedLen + 2
 
 	if msg.HEADER.IsMulti() {
-		msg.HEADER.MutilFlag.MsgSum = codec.Bytes2Word(data[usedLen:])
+		msg.HEADER.MutilFlag.MsgSum = codec.Bytes2Word(frameData[usedLen:])
 		usedLen = usedLen + 2
-		msg.HEADER.MutilFlag.MsgIndex = codec.Bytes2Word(data[usedLen:])
+		msg.HEADER.MutilFlag.MsgIndex = codec.Bytes2Word(frameData[usedLen:])
 		usedLen = usedLen + 2
 	}
 
-	if len(data)-1 < usedLen {
+	if len(frameData) < usedLen {
 		return Message{}, fmt.Errorf("flag code is too short")
 	}
 
-	msg.BODY = make([]byte, len(data)-1-usedLen)
-	copy(msg.BODY, data[usedLen:len(data)-1])
-	usedLen = len(data) - 1
-
-	rawcs := checkSum(data[:len(data)-1])
-
-	if rawcs != data[len(data)-1] {
-		return Message{}, fmt.Errorf("cs is not match:%d--%d", rawcs, data[len(data)-1])
-	}
+	msg.BODY = make([]byte, len(frameData)-usedLen)
+	copy(msg.BODY, frameData[usedLen:len(frameData)])
+	usedLen = len(frameData)
 
 	return msg, nil
 }

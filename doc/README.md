@@ -1341,7 +1341,23 @@ if startindex >= 0 {
 }
 ```
 
-此处的帧头和帧尾索引均相对于data的起始字节而言。理想的情况下，在startindex和endindex之间的数据就是我们需要解析的数据，所以之后的解析都是对这部分数据进行分析。我们对这部分的逻辑单独用一个函数来处理，这个函数主要完成两个逻辑：转义和解析
+此处的帧头和帧尾索引均相对于data的起始字节而言。理想的情况下，在startindex和endindex之间的数据就是我们需要解析的数据，所以之后的解析都是对这部分数据进行分析。我们对这部分的逻辑单独用一个函数来处理，这个函数主要完成三个逻辑：转义、校验检查和解析
+
+```go
+func frameParser(data []byte) (Message, error) {
+
+}
+```
+
+data入参从startindex到endindex，不包括startindex和endindex。
+
+在转义之前，首先判断基本的长度。通过对帧头固定字段分析可以知道，消息头部分的长度为17或者19个字节，加上帧头帧尾校验位的话最小就是17+3=20个字节，鉴于BODY部分可能为空，所以整个帧最小长度应该为20字节：
+
+```go
+if len(data)+2 < 17+3 {
+    return Message{}, fmt.Errorf("header is too short")
+}
+```
 
 转义比较简单，为了代码复用，定义成一个函数：
 
@@ -1352,7 +1368,7 @@ func Escape(data, oldBytes, newBytes []byte) []byte {
 	var startindex int = 0
 
 	for startindex < len(data) {
-		index := bytes.Index(buff[startindex:], oldBytes)
+		index := bytes.Index(data[startindex:], oldBytes)
 		if index >= 0 {
 			buff = append(buff, data[startindex:index]...)
 			buff = append(buff, newBytes...)
@@ -1369,40 +1385,43 @@ func Escape(data, oldBytes, newBytes []byte) []byte {
 调用：
 
 ```go
-frameData := Escape(data[startindex+1:endindex], []byte{0x7d, 0x02}, []byte{0x7e})
+//不包含帧头帧尾
+frameData := Escape(data[:len(data)], []byte{0x7d, 0x02}, []byte{0x7e})
 frameData = Escape(frameData, []byte{0x7d, 0x01}, []byte{0x7d})
 ```
 
-然后就是对frameData中的数据进行解析了：
+校验就是简单的异或校验，从消息头到消息体结束，即data[:len(data)-1]
 
 ```go
-func frameParser(data []byte) (Message, error) {
-
+func checkSum(data []byte) byte {
+	var sum byte = 0
+	for _, itemdata := range data {
+		sum ^= itemdata
+	}
+	return sum
 }
 ```
 
-入参为startindex和endindex之间的数据，这两个字节均不包括在内，然后经过转义之后的数据。
-
-对于转义后的数据处理，首先判断基本的长度。通过对帧头固定字段分析可以知道，消息头部分的长度为17或者19个字节，加上帧头帧尾校验位的话最小就是17+3=20个字节，鉴于BODY部分可能为空，所以整个帧最小长度应该为19字节
+调用：
 
 ```go
-if endindex-(startindex+1) + 2 >= 17+3 {if len(data)+2 < 17+3 {
-    return Message{}, fmt.Errorf("header is too short")
+rawcs := checkSum(frameData[:len(frameData)-1])
+
+if rawcs != frameData[len(frameData)-1] {
+    return Message{}, fmt.Errorf("cs is not match:%d--%d", rawcs, frameData[len(frameData)-1])
 }
 ```
 
-当然上面的这个条件我只是为了方便阅读，计算公式可以在合并简化一下。
-
-接着我们就逐个字段的处理就行了：
+然后就是对frameData中的具体数据进行解析了：
 
 ```go
 var usedLen int = 0
 var msg Message
-msg.HEADER.MID = codec.Bytes2Word(data[usedLen:])
+msg.HEADER.MID = codec.Bytes2Word(frameData[usedLen:])
 usedLen = usedLen + 2
-msg.HEADER.Attr = codec.Bytes2Word(data[usedLen:])
+msg.HEADER.Attr = codec.Bytes2Word(frameData[usedLen:])
 usedLen = usedLen + 2
-msg.HEADER.Version = data[usedLen]
+msg.HEADER.Version = frameData[usedLen]
 usedLen = usedLen + 1
 ```
 
@@ -1411,10 +1430,10 @@ usedLen = usedLen + 1
 手机号固定为10个字节，不足的话前面会填充0，所以我们要把前面无效的0去掉，使用bytes.TrimLeftFunc：
 
 ```go
-tempPhone := bytes.TrimLeftFunc(data[usedLen:usedLen+10], func(r rune) bool { return r == 0x00 })
+tempPhone := bytes.TrimLeftFunc(frameData[usedLen:usedLen+10], func(r rune) bool { return r == 0x00 })
 msg.HEADER.PhoneNum = string(tempPhone)
 usedLen = usedLen + 10
-msg.HEADER.SeqNum = codec.Bytes2Word(data[usedLen:])
+msg.HEADER.SeqNum = codec.Bytes2Word(frameData[usedLen:])
 usedLen = usedLen + 2
 ```
 
@@ -1422,9 +1441,9 @@ usedLen = usedLen + 2
 
 ```go
 if msg.HEADER.IsMulti() {
-    msg.HEADER.MutilFlag.MsgSum = codec.Bytes2Word(data[usedLen:])
+    msg.HEADER.MutilFlag.MsgSum = codec.Bytes2Word(frameData[usedLen:])
     usedLen = usedLen + 2
-    msg.HEADER.MutilFlag.MsgIndex = codec.Bytes2Word(data[usedLen:])
+    msg.HEADER.MutilFlag.MsgIndex = codec.Bytes2Word(frameData[usedLen:])
     usedLen = usedLen + 2
 }
 ```
@@ -1432,8 +1451,7 @@ if msg.HEADER.IsMulti() {
 再次对usedLen长度判断一下，避免超过界限：
 
 ```go
-//-1跳过前面的校验位
-if len(data)-1 < usedLen {
+if len(frameData) < usedLen {
     return Message{}, fmt.Errorf("flag code is too short")
 }
 ```
@@ -1441,25 +1459,15 @@ if len(data)-1 < usedLen {
 处理到上面的地方后，接着的就是BODY部分了，直接copy对应的长度，长度为:
 
 ```
-len(data)-1-usedLen
+len(frameData)-usedLen
 ```
 
 逻辑如下
 
 ```go
-msg.BODY = make([]byte, len(data)-1-usedLen)
-copy(msg.BODY, data[usedLen:len(data)-1])
-usedLen = len(data) - 1
-```
-
-接着就是校验检查了：
-
-```go
-rawcs := checkSum(data[:len(data)-1])
-
-if rawcs != data[len(data)-1] {
-    return Message{}, fmt.Errorf("cs is not match:%d--%d", rawcs, data[len(data)-1])
-}
+msg.BODY = make([]byte, len(frameData)-usedLen)
+copy(msg.BODY, frameData[usedLen:len(frameData)])
+usedLen = len(frameData)
 
 return msg, nil
 ```
@@ -1475,10 +1483,11 @@ msg, err := frameParser(frameData)
 当返回错误时，返回的长度值应该为endindex，即不包括endindex处对应的0x7e。因为这个0x7e可能是后面数据的帧头。
 
 ```go
-msg, err := frameParser(frameData)
+msg, err := frameParser(data[startindex+1 : endindex])
 if err != nil {
     return Message{}, endindex, err
 }
+
 return msg, endindex + 1, nil
 ```
 
@@ -1618,8 +1627,10 @@ func Filter(data []byte) ([]Message, int, error) {
 	msgList := make([]Message, 0)
 	var cnt int = 0
 	for {
+        //添加一个计数器，防止数据异常导致死循环
 		cnt++
 		if cnt > 10 {
+			cnt = 0
 			return []Message{}, 0, fmt.Errorf("time too much")
 		}
 		if usedLen >= len(data) {
@@ -1648,10 +1659,7 @@ func filterSigle(data []byte) (Message, int, error) {
 		if endindex >= 0 {
 			endindex = endindex + usedLen
 
-			frameData := Escape(data[startindex+1:endindex], []byte{0x7d, 0x02}, []byte{0x7e})
-			frameData = Escape(frameData, []byte{0x7d, 0x01}, []byte{0x7d})
-
-			msg, err := frameParser(frameData)
+			msg, err := frameParser(data[startindex+1 : endindex])
 			if err != nil {
 				return Message{}, endindex, err
 			}
@@ -1670,7 +1678,7 @@ func Escape(data, oldBytes, newBytes []byte) []byte {
 	var startindex int = 0
 
 	for startindex < len(data) {
-		index := bytes.Index(buff[startindex:], oldBytes)
+		index := bytes.Index(data[startindex:], oldBytes)
 		if index >= 0 {
 			buff = append(buff, data[startindex:index]...)
 			buff = append(buff, newBytes...)
@@ -1688,51 +1696,48 @@ func frameParser(data []byte) (Message, error) {
 		return Message{}, fmt.Errorf("header is too short")
 	}
 
+	//不包含帧头帧尾
+	frameData := Escape(data[:len(data)], []byte{0x7d, 0x02}, []byte{0x7e})
+	frameData = Escape(frameData, []byte{0x7d, 0x01}, []byte{0x7d})
+
+	//之后的操作都是基于frameData来处理
+	rawcs := checkSum(frameData[:len(frameData)-1])
+
+	if rawcs != frameData[len(frameData)-1] {
+		return Message{}, fmt.Errorf("cs is not match:%d--%d", rawcs, frameData[len(frameData)-1])
+	}
+
 	var usedLen int = 0
 	var msg Message
-	msg.HEADER.MID = codec.Bytes2Word(data[usedLen:])
+	msg.HEADER.MID = codec.Bytes2Word(frameData[usedLen:])
 	usedLen = usedLen + 2
-	msg.HEADER.Attr = codec.Bytes2Word(data[usedLen:])
+	msg.HEADER.Attr = codec.Bytes2Word(frameData[usedLen:])
 	usedLen = usedLen + 2
-	msg.HEADER.Version = data[usedLen]
+	msg.HEADER.Version = frameData[usedLen]
 	usedLen = usedLen + 1
 
-	tempPhone := bytes.TrimLeftFunc(data[usedLen:usedLen+10], func(r rune) bool { return r == 0x00 })
+	tempPhone := bytes.TrimLeftFunc(frameData[usedLen:usedLen+10], func(r rune) bool { return r == 0x00 })
 	msg.HEADER.PhoneNum = string(tempPhone)
 	usedLen = usedLen + 10
-	msg.HEADER.SeqNum = codec.Bytes2Word(data[usedLen:])
+	msg.HEADER.SeqNum = codec.Bytes2Word(frameData[usedLen:])
 	usedLen = usedLen + 2
 
 	if msg.HEADER.IsMulti() {
-		msg.HEADER.MutilFlag.MsgSum = codec.Bytes2Word(data[usedLen:])
+		msg.HEADER.MutilFlag.MsgSum = codec.Bytes2Word(frameData[usedLen:])
 		usedLen = usedLen + 2
-		msg.HEADER.MutilFlag.MsgIndex = codec.Bytes2Word(data[usedLen:])
+		msg.HEADER.MutilFlag.MsgIndex = codec.Bytes2Word(frameData[usedLen:])
 		usedLen = usedLen + 2
 	}
 
-	if len(data)-1 < usedLen {
+	if len(frameData) < usedLen {
 		return Message{}, fmt.Errorf("flag code is too short")
 	}
 
-	msg.BODY = make([]byte, len(data)-1-usedLen)
-	copy(msg.BODY, data[usedLen:len(data)-1])
-	usedLen = len(data) - 1
-
-	rawcs := checkSum(data[:len(data)-1])
-
-	if rawcs != data[len(data)-1] {
-		return Message{}, fmt.Errorf("cs is not match:%d--%d", rawcs, data[len(data)-1])
-	}
+	msg.BODY = make([]byte, len(frameData)-usedLen)
+	copy(msg.BODY, frameData[usedLen:len(frameData)])
+	usedLen = len(frameData)
 
 	return msg, nil
-}
-
-func checkSum(data []byte) byte {
-	var sum byte = 0
-	for _, itemdata := range data {
-		sum ^= itemdata
-	}
-	return sum
 }
 ```
 

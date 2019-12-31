@@ -27,7 +27,7 @@ func Unmarshal(data []byte, v interface{}) (int, error) {
 	}
 
 	if len(data) < lens {
-		return 0, fmt.Errorf("data too short")
+		return 0, fmt.Errorf("data too short,datalen:%d,lens:%d", len(data), lens)
 	}
 
 	return refUnmarshal(data, reflect.ValueOf(v), reflect.StructField{}, len(data)-lens)

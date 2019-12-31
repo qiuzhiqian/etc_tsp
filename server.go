@@ -89,13 +89,6 @@ var engine *xorm.Engine
 
 var config Config
 
-func checkError(err error) {
-	if err != nil {
-		log.WithFields(logrus.Fields{"Error:": err.Error()}).Error("check")
-		os.Exit(1)
-	}
-}
-
 func recvConnMsg(conn net.Conn) {
 	buf := make([]byte, 0)
 	addr := conn.RemoteAddr()
@@ -227,7 +220,11 @@ func main() {
 	log.Info("address port ", address)
 
 	listenSock, err := net.Listen("tcp", address)
-	checkError(err)
+	if err != nil {
+		log.WithFields(logrus.Fields{"Error:": err.Error()}).Error("check")
+		os.Exit(1)
+	}
+
 	defer listenSock.Close()
 
 	connManger = make(map[string]*term.Terminal)

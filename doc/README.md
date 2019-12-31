@@ -2168,3 +2168,144 @@ func (t *Terminal) Handler(msg proto.Message) []byte {
 }
 ```
 
+## 数据库操作
+
+数据库部分我使用postgresql，为了简化上层调用，我又使用了xorm。
+
+库导入
+
+```go
+import (
+	"github.com/go-xorm/xorm"
+	_ "github.com/lib/pq"
+)
+```
+
+创建一个全局引擎指针
+
+```go
+var engine *xorm.Engine
+```
+
+定义一个初始化函数，用来初始化数据库相关的一些内容：
+
+```go
+func xormInit(driverName string, dataSourceName string) (*xorm.Engine, error) {
+    
+}
+```
+
+数据库中，我们需要操作四个数据库表：users、log_frame、dev_info和gps_data。根据golang和xorm的映射关系，我们先创建对应的四个结构体。因为dev_info和gps_data是提供给term模块使用的，所以这两个结构体在term包中
+
+```go
+type Users struct {
+	Id       int       `xorm:"pk autoincr notnull id"`
+	Name     string    `xorm:"name"`
+	Password string    `xorm:"password"`
+	IsAdmin  bool      `xorm:"admin"`
+	Stamp    time.Time `xorm:"stamp"`
+}
+
+type LogFrame struct {
+	Id    int       `xorm:"pk autoincr notnull id"`
+	Stamp time.Time `xorm:"DateTime notnull 'stamp'"`
+	Dir   int       `xorm:"dir"`
+	Frame string    `xorm:"Varchar(2048) frame"`
+}
+```
+
+```go
+type DevInfo struct {
+	Authkey    string `xorm:"auth_key"`
+	Imei       string `xorm:"imei"`
+	Vin        string `xorm:"vin"`
+	PhoneNum   string `xorm:"pk notnull phone_num"`
+	ProvId     uint16 `xorm:"prov_id"`
+	CityId     uint16 `xorm:"city_id"`
+	Manuf      string `xorm:"manuf"`
+	TermType   string `xorm:"term_type"`
+	TermId     string `xorm:"term_id"`
+	PlateColor int    `xorm:"plate_color"`
+	PlateNum   string `xorm:"plate_num"`
+}
+
+func (d DevInfo) TableName() string {
+	return "dev_info"
+}
+
+type GPSData struct {
+	Imei      string    `xorm:"pk notnull imei`
+	Stamp     time.Time `xorm:"DateTime pk notnull stamp`
+	WarnFlag  uint32    `xorm:"warnflag"`
+	State     uint32    `xorm:"state"`
+	AccState  uint8     `xorm:"accstate"`
+	GpsState  uint8     `xorm:"gpsstate"`
+	Latitude  uint32    `xorm:"latitude"`
+	Longitude uint32    `xorm:"longitude"`
+	Altitude  uint16    `xorm:"altitude"`
+	Speed     uint16    `xorm:"speed"`
+	Direction uint16    `xorm:"direction"`
+}
+
+func (d GPSData) TableName() string {
+	return "gps_data"
+}
+```
+
+我们可以通过结构体的TableName方法来指定数据库表名
+
+初始化xorm引擎
+
+```go
+var err error
+engine, err = xorm.NewEngine(driverName, dataSourceName)
+if err != nil {
+    return engine, err
+}
+```
+
+同步数据表结构：
+
+```go
+users := new(Users)
+err = engine.Sync2(users)
+if err != nil {
+    return engine, err
+}
+
+logframe := new(LogFrame)
+err = engine.Sync2(logframe)
+if err != nil {
+    return engine, err
+}
+
+gpsdata := new(term.GPSData)
+err = engine.Sync2(gpsdata)
+if err != nil {
+    return engine, err
+}
+
+devinfo := new(term.DevInfo)
+err = engine.Sync2(devinfo)
+if err != nil {
+    return engine, err
+}
+```
+
+Sync2会同步结构体到实际的数据库表上面，如果表不存在，就会自动创建，如果结构体中新增了字段，数据库中也会增加相应字段。
+
+调用：
+
+```go
+engine, err = xormInit("postgres", "postgres://pqgotest:pqgotest@localhost/pqgodb?sslmode=require")
+```
+
+连接一个postgres数据库，地址为localhost，用户名为pqgotest，密码为pqgotest，数据库名为pqgodb，后面的sslmode为ssl模式，具体细节网上很多教程，此处不展开。
+
+数据库的插入操作主要使用xorm的Insert函数，查询使用xorm的Find和Get。查询可以配合Where等函数使用。具体参考[xorm官方文档](http://gobook.io/read/gitea.com/xorm/manual-zh-CN/)
+
+## 配置加载
+
+## TCP服务器
+
+前面的所有内容都是为了实现一个基于jtt808协议的TCP服务器而做的工作，我们现在需要吧上面讲解的内容整合起来，让各个模块协调工作，完成一整套的服务流程。

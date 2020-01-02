@@ -55,7 +55,7 @@ export default {
   methods: {
     getdata: function(index) {
       this.axios
-        .post("/api/userlist", {
+        .post("/api/v1/userlist", {
           page: index
         })
         .then(response => {

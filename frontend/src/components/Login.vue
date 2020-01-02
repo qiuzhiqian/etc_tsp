@@ -66,7 +66,7 @@ export default {
       this.$refs[name].validate(valid => {
         if (valid) {
           this.axios
-            .post("/api/login", {
+            .post("/api/v1/login", {
               user: this.formInline.user,
               password: this.formInline.password
             })

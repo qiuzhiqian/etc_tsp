@@ -109,7 +109,7 @@ export default {
       }
 
       this.axios
-        .post("/api/data", {
+        .post("/api/v1/data", {
           imei: this.value,
           starttime: this.datepick[0].getTime() / 1000,
           endtime: this.datepick[1].getTime() / 1000,

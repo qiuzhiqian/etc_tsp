@@ -94,7 +94,7 @@ export default {
           }
           //window.console.log(name);
           this.axios
-            .post("/api/useradd", {
+            .post("/api/v1/useradd", {
               user: this.formInline.user,
               password: this.formInline.password,
               admin: this.formInline.isAdmin

@@ -301,15 +301,18 @@ func logInit() {
 func httpServer() {
 	router := gin.Default()
 
-	router.POST("/api/list", listHandler)
-	router.POST("/api/data", dataHandler)
-	router.POST("/api/nowgps", nowGpsHandler)
-	router.POST("/api/gpsmap", gpsMapHandler)
-	router.POST("/api/login", loginHandler)
-	router.POST("/api/config", configHandler)
-	router.POST("/api/control", controlHandler)
-	router.POST("/api/userlist", userListHandler)
-	router.POST("/api/useradd", userAddHandler)
+	v1 := router.Group("/api/v1")
+	{
+		v1.POST("list", listHandler)
+		v1.POST("data", dataHandler)
+		v1.POST("nowgps", nowGpsHandler)
+		v1.POST("gpsmap", gpsMapHandler)
+		v1.POST("login", loginHandler)
+		v1.POST("config", configHandler)
+		v1.POST("control", controlHandler)
+		v1.POST("userlist", userListHandler)
+		v1.POST("useradd", userAddHandler)
+	}
 
 	router.StaticFS("/css", http.Dir("frontend/dist/css"))
 	router.StaticFS("/fonts", http.Dir("frontend/dist/fonts"))

@@ -141,7 +141,7 @@ func Escape(data, oldBytes, newBytes []byte) []byte {
 	for startindex < len(data) {
 		index := bytes.Index(data[startindex:], oldBytes)
 		if index >= 0 {
-			buff = append(buff, data[startindex:index]...)
+			buff = append(buff, data[startindex:startindex+index]...)
 			buff = append(buff, newBytes...)
 			startindex = index + len(oldBytes)
 		} else {

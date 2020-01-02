@@ -78,7 +78,7 @@ export default {
   },
   mounted: function() {
     if (this.$store.state.mapKey == "") {
-      this.axios.post("/api/config").then(resp => {
+      this.axios.post("/api/v1/config").then(resp => {
         window.console.log(resp.data);
         this.$store.commit("setMapkey", resp.data.mapAppKey);
 

@@ -65,7 +65,7 @@ export default {
       }
 
       this.axios
-        .post("/api/nowgps", {
+        .post("/api/v1/nowgps", {
           imei: imeistr
         })
         .then(response => {
@@ -93,7 +93,7 @@ export default {
         });
 
       this.axios
-        .post("/api/gpsmap", {
+        .post("/api/v1/gpsmap", {
           imei: imeistr,
           starttime: this.datepick[0].getTime() / 1000,
           endtime: this.datepick[1].getTime() / 1000

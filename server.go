@@ -443,6 +443,7 @@ func dataHandler(c *gin.Context) {
 		Altitude  uint16 `json:"altitude"`
 		Speed     uint16 `json:"speed"`
 		Direction uint16 `json:"direction"`
+		DataStamp int64  `json:"dataStamp"`
 	}
 
 	type DataResp struct {
@@ -491,6 +492,7 @@ func dataHandler(c *gin.Context) {
 		item.Altitude = val.Altitude
 		item.Speed = val.Speed
 		item.Direction = val.Direction
+		item.DataStamp = val.DataStamp.Unix()
 		datalist = append(datalist, item)
 	}
 	dataresp.Data = datalist

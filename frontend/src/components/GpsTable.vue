@@ -78,6 +78,10 @@ export default {
         {
           title: "Direction",
           key: "direction"
+        },
+        {
+          title: "DataTime",
+          key: "dataTime"
         }
       ],
       data1: [],
@@ -126,6 +130,13 @@ export default {
               tempdate.toLocaleDateString().replace(/\//g, "-") +
               " " +
               tempdate.toTimeString().substr(0, 8);
+
+            var datadate = new Date(response.data.data[i].dataStamp * 1000);
+            var datastr =
+              datadate.toLocaleDateString().replace(/\//g, "-") +
+              " " +
+              datadate.toTimeString().substr(0, 8);
+
             var item = {
               imei: response.data.data[i].imei,
               time: datestr,
@@ -135,7 +146,8 @@ export default {
               longitude: response.data.data[i].longitude,
               altitude: response.data.data[i].altitude,
               speed: response.data.data[i].speed,
-              direction: response.data.data[i].direction
+              direction: response.data.data[i].direction,
+              dataTime: datastr,
             };
             this.data1.push(item);
 

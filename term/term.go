@@ -3,6 +3,7 @@ package term
 import (
 	"fmt"
 	"net"
+	"strconv"
 	"strings"
 	"time"
 
@@ -44,6 +45,7 @@ type GPSData struct {
 	Altitude  uint16    `xorm:"altitude"`
 	Speed     uint16    `xorm:"speed"`
 	Direction uint16    `xorm:"direction"`
+	DataStamp time.Time `xorm:"DateTime pk notnull datastamp`
 }
 
 func (d GPSData) TableName() string {
@@ -179,7 +181,7 @@ func (t *Terminal) Handler(msg proto.Message) []byte {
 		reqID := codec.Bytes2Word(msg.BODY[2:4])
 		if reqID == proto.UpdateReq {
 			//ch <- 1
-			//升级命令
+			//均级命令
 		}
 	case proto.Register:
 		devinfo := new(DevInfo)
@@ -290,6 +292,16 @@ func (t *Terminal) Handler(msg proto.Message) []byte {
 		gpsdata.Altitude = gpsInfo.Alt
 		gpsdata.Speed = gpsInfo.Speed
 		gpsdata.Direction = gpsInfo.Dir
+
+		var year, month, day, hour, minute, second uint64
+		year, err = strconv.ParseUint(strconv.FormatUint(uint64(gpsInfo.Time[0]), 16), 10, 8)
+		month, err = strconv.ParseUint(strconv.FormatUint(uint64(gpsInfo.Time[1]), 16), 10, 8)
+		day, err = strconv.ParseUint(strconv.FormatUint(uint64(gpsInfo.Time[2]), 16), 10, 8)
+		hour, err = strconv.ParseUint(strconv.FormatUint(uint64(gpsInfo.Time[3]), 16), 10, 8)
+		minute, err = strconv.ParseUint(strconv.FormatUint(uint64(gpsInfo.Time[4]), 16), 10, 8)
+		second, err = strconv.ParseUint(strconv.FormatUint(uint64(gpsInfo.Time[5]), 16), 10, 8)
+
+		gpsdata.DataStamp = time.Date(int(2000+year), time.Month(month), int(day), int(hour), int(minute), int(second), 0, time.Local)
 
 		if (gpsdata.State & 0x00000001) > 0 {
 			gpsdata.AccState = 1
